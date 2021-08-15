@@ -153,7 +153,6 @@ public class GameSessionServiceImpl implements GameSessionService {
   public void update(GameSession update) {
     GameSessionDao updateDao = GameSessionDaoMapper.INSTANCE.toDao(update);
     redisKVTemplate.update(updateDao);
-    log.info("Room {} updated", update.getRoomId());
   }
 
   @Override
@@ -277,6 +276,7 @@ public class GameSessionServiceImpl implements GameSessionService {
           }
 
           playerRedisRepository.deleteById(delPlayerId);
+          log.info("Player {} in Room {} removed", delPlayerId, roomId);
 
         } finally {
           lock.unlock();
@@ -294,6 +294,7 @@ public class GameSessionServiceImpl implements GameSessionService {
    */
   private void removeReadyPlayer(String roomId, String playerId) {
     playerRedisRepository.deleteById(playerId);
+    log.info("Player {} in Room {} removed", playerId, roomId);
 
     List<Player> players = playerRedisRepository.findByRoomId(roomId);
     if (players.size() <= 0) {
@@ -362,7 +363,28 @@ public class GameSessionServiceImpl implements GameSessionService {
   }
 
   @Override
-  public boolean isDone(GameSession gameSession, List<String> victims) {
+  public boolean isDone(GameSession gameSession, List<Player> players, List<String> victims) {
+    boolean isAllLeft = true;
+    for (Player player : players) {
+      if (!player.isLeft()) {
+        isAllLeft = false;
+        break;
+      }
+    }
+
+    if (isAllLeft) {
+      String roomId = gameSession.getRoomId();
+      log.info("All player left the Room {} while playing", roomId);
+      for (Player player : players) {
+        playerRedisRepository.deleteById(player.getId());
+        log.info("Player {} in Room {} removed", player.getId(), roomId);
+      }
+      deleteById(gameSession.getRoomId());
+      return true;
+    }
+
+
+
     GameResult gameResult = GameResult.of(gameSession, victims);
     if (gameResult.getWinner() == null) {
       return false;

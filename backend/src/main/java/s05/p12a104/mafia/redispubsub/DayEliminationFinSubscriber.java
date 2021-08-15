@@ -63,8 +63,9 @@ public class DayEliminationFinSubscriber {
         gameSession = gameSessionService.findById(roomId);
         List<String> victims = setDayToNight(gameSession, deadPlayerId);
 
+        List<Player> players = playerRedisRepository.findByRoomId(roomId);
         // 종료 여부 체크
-        if (gameSessionService.isDone(gameSession, victims)) {
+        if (gameSessionService.isDone(gameSession, players, victims)) {
           return;
         }
 
@@ -74,7 +75,6 @@ public class DayEliminationFinSubscriber {
         }
         Player deadPlayer = deadPlayerOptional.get();
 
-        List<Player> players = playerRedisRepository.findByRoomId(roomId);
         // 밤투표 결과
         template.convertAndSend("/sub/" + roomId, GameStatusKillRes.of(gameSession, players, deadPlayer));
 

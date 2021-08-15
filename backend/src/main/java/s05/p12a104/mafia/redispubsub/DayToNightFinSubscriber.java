@@ -78,7 +78,7 @@ public class DayToNightFinSubscriber {
         gameSessionService.update(gameSession);
 
         // 종료 여부 체크
-        if (gameSessionService.isDone(gameSession, victims)) {
+        if (gameSessionService.isDone(gameSession, players, victims)) {
           return;
         }
 

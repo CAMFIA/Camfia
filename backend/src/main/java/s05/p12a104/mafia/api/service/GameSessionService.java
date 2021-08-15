@@ -8,6 +8,7 @@ import s05.p12a104.mafia.api.requset.GameSessionPostReq;
 import s05.p12a104.mafia.api.response.GameSessionJoinRes;
 import s05.p12a104.mafia.common.exception.GameSessionException;
 import s05.p12a104.mafia.domain.entity.GameSession;
+import s05.p12a104.mafia.domain.entity.Player;
 import s05.p12a104.mafia.domain.entity.User;
 import s05.p12a104.mafia.domain.enums.GameRole;
 
@@ -29,7 +30,7 @@ public interface GameSessionService {
 
   void startGame(String roomId);
 
-  boolean isDone(GameSession gameSession, List<String> victims);
+  boolean isDone(GameSession gameSession, List<Player> players, List<String> victims);
 
   void endGame(String roomId);
 

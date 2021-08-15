@@ -72,12 +72,12 @@ public class DayDiscussionFinSubscriber {
         // DAY ELIMINATION으로
         List<String> victims = setDayElimination(gameSession, suspiciousList);
 
+        List<Player> players = playerRedisRepository.findByRoomId(roomId);
         // 종료 여부 체크
-        if (gameSessionService.isDone(gameSession, victims)) {
+        if (gameSessionService.isDone(gameSession, players, victims)) {
           return;
         }
 
-        List<Player> players = playerRedisRepository.findByRoomId(roomId);
         template.convertAndSend("/sub/" + roomId, GameStatusRes.of(gameSession, players));
 
         for (Player player : players) {
