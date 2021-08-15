@@ -1,5 +1,6 @@
 package s05.p12a104.mafia.redispubsub;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,8 +18,10 @@ import s05.p12a104.mafia.api.service.GameSessionService;
 import s05.p12a104.mafia.api.service.GameSessionVoteService;
 import s05.p12a104.mafia.common.exception.RedissonLockNotAcquiredException;
 import s05.p12a104.mafia.domain.entity.GameSession;
+import s05.p12a104.mafia.domain.entity.Player;
 import s05.p12a104.mafia.domain.enums.GamePhase;
 import s05.p12a104.mafia.domain.enums.GameRole;
+import s05.p12a104.mafia.domain.repository.PlayerRedisRepository;
 import s05.p12a104.mafia.stomp.response.GameStatusRes;
 
 @Slf4j
@@ -29,6 +32,7 @@ public class DayToNightFinSubscriber {
   private final ObjectMapper objectMapper;
   private final SimpMessagingTemplate template;
   private final GameSessionService gameSessionService;
+  private final PlayerRedisRepository playerRedisRepository;
   private final GameSessionVoteService gameSessionVoteService;
   private final RedissonClient redissonClient;
   private static final String KEY = "GameSession";
@@ -49,14 +53,28 @@ public class DayToNightFinSubscriber {
       }
 
       GameSession gameSession = null;
-      Map<String, String> players = new HashMap();
+      Map<String, String> aliveNotCivilians = new HashMap<>();
       try {
         gameSession = gameSessionService.findById(roomId);
         // 나간 사람 체크 및 기본 세팅
-        List<String> victims = gameSession.changePhase(GamePhase.NIGHT_VOTE, 30);
-        gameSession.setAliveNotCivilian(gameSession.getPlayerMap().entrySet().stream()
-            .filter(e -> e.getValue().getRole() != GameRole.CIVILIAN)
-            .filter(e -> e.getValue().isAlive()).collect(Collectors.toList()).size());
+        gameSession.changePhase(GamePhase.NIGHT_VOTE, 30);
+
+        List<String> victims = new ArrayList<>();
+        List<Player> players = playerRedisRepository.findByRoomId(roomId);
+        for (Player player : players) {
+          if (!player.isLeft() || player.getLeftPhaseCount() >= gameSession.getPhaseCount()) {
+            continue;
+          }
+          player.setAlive(false);
+          playerRedisRepository.save(player);
+          gameSession.eliminatePlayer(player);
+          victims.add(player.getNickname());
+        }
+
+        gameSession.setAliveNotCivilian((int) players.stream()
+            .filter(e -> e.getRole() != GameRole.CIVILIAN)
+            .filter(Player::isAlive).count());
+
         gameSessionService.update(gameSession);
 
         // 종료 여부 체크
@@ -64,11 +82,11 @@ public class DayToNightFinSubscriber {
           return;
         }
 
-        template.convertAndSend("/sub/" + roomId, GameStatusRes.of(gameSession));
+        template.convertAndSend("/sub/" + roomId, GameStatusRes.of(gameSession, players));
 
-        gameSession.getPlayerMap().forEach((playerId, player) -> {
+        players.forEach(player -> {
           if (player.isAlive() && player.getRole() != GameRole.CIVILIAN) {
-            players.put(playerId, null);
+            aliveNotCivilians.put(player.getId(), null);
           }
         });
 
@@ -77,8 +95,8 @@ public class DayToNightFinSubscriber {
       }
 
       gameSessionVoteService.startVote(roomId, gameSession.getPhase(), gameSession.getTimer(),
-          players);
-      log.info("NIGHT_VOTE 투표 생성!", roomId);
+          aliveNotCivilians);
+      log.info("NIGHT_VOTE 투표 생성! - {}", roomId);
     } catch (JsonProcessingException e) {
       e.printStackTrace();
     }

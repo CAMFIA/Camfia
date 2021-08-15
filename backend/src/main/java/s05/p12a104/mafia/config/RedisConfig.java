@@ -1,5 +1,9 @@
 package s05.p12a104.mafia.config;
 
+import com.fasterxml.jackson.databind.Module;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -36,6 +40,17 @@ public class RedisConfig {
     RedisProperties properties = redisProperties();
     return new LettuceConnectionFactory(properties.getHost(), properties.getPort());
   }
+
+//  @Bean
+//  public ObjectMapper objectMapper() {
+//    ObjectMapper mapper = new ObjectMapper();
+//
+//    SimpleModule module = new JavaTimeModule();
+////    module.addSerializer(new StringRedisSerializer());
+//    module.addKeySerializer(new StringRedisSerializer());
+////    mapper.registerModule(new JavaTimeModule());
+////    return mapper;
+//  }
 
   @Bean
   public ChannelTopic topicStartFin() {
@@ -127,6 +142,19 @@ public class RedisConfig {
     redisTemplate.setValueSerializer(new Jackson2JsonRedisSerializer<>(String.class));
     redisTemplate.setHashKeySerializer(new StringRedisSerializer());
     redisTemplate.setHashValueSerializer(new GenericJackson2JsonRedisSerializer());
+    return redisTemplate;
+  }
+
+  @Bean
+  public RedisTemplate<String, Object> objRedisTemplate() {
+    RedisTemplate<String, Object> redisTemplate = new RedisTemplate<>();
+    redisTemplate.setConnectionFactory(redisConnectionFactory());
+    redisTemplate.setKeySerializer(new StringRedisSerializer());
+//    redisTemplate.setValueSerializer(new StringRedisSerializer());
+    redisTemplate.setValueSerializer(new Jackson2JsonRedisSerializer<>(String.class));
+    redisTemplate.setHashKeySerializer(new StringRedisSerializer());
+    redisTemplate.setHashValueSerializer(new StringRedisSerializer());
+//    redisTemplate.setHashValueSerializer(new GenericJackson2JsonRedisSerializer());
     return redisTemplate;
   }
 

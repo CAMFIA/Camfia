@@ -1,9 +1,13 @@
 package s05.p12a104.mafia.redispubsub;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Timer;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.listener.ChannelTopic;
@@ -20,6 +24,7 @@ import s05.p12a104.mafia.domain.entity.GameSession;
 import s05.p12a104.mafia.domain.entity.Player;
 import s05.p12a104.mafia.domain.enums.GamePhase;
 import s05.p12a104.mafia.domain.enums.GameRole;
+import s05.p12a104.mafia.domain.repository.PlayerRedisRepository;
 import s05.p12a104.mafia.redispubsub.message.NightVoteMessage;
 import s05.p12a104.mafia.stomp.response.GameStatusKillRes;
 import s05.p12a104.mafia.stomp.response.PlayerDeadRes;
@@ -35,6 +40,7 @@ public class NightVoteFinSubscriber {
   private final SimpMessagingTemplate template;
   private final RedisPublisher redisPublisher;
   private final GameSessionService gameSessionService;
+  private final PlayerRedisRepository playerRedisRepository;
   private final ChannelTopic topicStartFin;
   private final RedissonClient redissonClient;
   private static final String KEY = "GameSession";
@@ -68,9 +74,13 @@ public class NightVoteFinSubscriber {
       try {
         gameSession = gameSessionService.findById(roomId);
 
-        Player deadPlayer = gameSession.getPlayerMap().get(deadPlayerId);
+        List<Player> players = playerRedisRepository.findByRoomId(roomId);
+        Map<String, Player> playerMap = players.stream()
+                .collect(Collectors.toMap(Player::getId, Function.identity()));
 
-        Player suspectPlayer = gameSession.getPlayerMap().get(suspectPlayerId);
+        Player deadPlayer = playerMap.get(deadPlayerId);
+
+        Player suspectPlayer = playerMap.get(suspectPlayerId);
 
         List<String> victims = setNightToDay(gameSession, deadPlayerId, protectedPlayerId);
 
@@ -80,7 +90,7 @@ public class NightVoteFinSubscriber {
         }
 
         // 밤투표 결과
-        template.convertAndSend("/sub/" + roomId, GameStatusKillRes.of(gameSession, deadPlayer));
+        template.convertAndSend("/sub/" + roomId, GameStatusKillRes.of(gameSession, players, deadPlayer));
 
         // 사망자 OBSERVER 변경
         if (deadPlayer != null) {
@@ -115,11 +125,28 @@ public class NightVoteFinSubscriber {
   private List<String> setNightToDay(GameSession gameSession, String deadPlayerId,
       String protectedPlayerId) {
     // 나간 사람 체크 및 기본 세팅
-    List<String> victims = gameSession.changePhase(GamePhase.NIGHT_TO_DAY, 15);
+    gameSession.changePhase(GamePhase.NIGHT_TO_DAY, 15);
+    List<String> victims = new ArrayList<>();
+    List<Player> players = playerRedisRepository.findByRoomId(gameSession.getRoomId());
+    for (Player player : players) {
+      if (!player.isLeft() || player.getLeftPhaseCount() >= gameSession.getPhaseCount()) {
+        continue;
+      }
+      player.setAlive(false);
+      playerRedisRepository.save(player);
+      gameSession.eliminatePlayer(player);
+      victims.add(player.getNickname());
+    }
 
-    if (deadPlayerId != null) {
-      gameSession.eliminatePlayer(deadPlayerId);
-      victims.add(gameSession.getPlayerMap().get(deadPlayerId).getNickname());
+    Optional<Player> deadPlayerOptional = playerRedisRepository.findById(deadPlayerId);
+    if (deadPlayerOptional.isPresent()) {
+      Player deadplayer = deadPlayerOptional.get();
+      if (deadplayer.isAlive()) {
+        deadplayer.setAlive(false);
+        playerRedisRepository.save(deadplayer);
+        gameSession.eliminatePlayer(deadplayer);
+        victims.add(deadplayer.getNickname());
+      }
     }
 
     gameSessionService.update(gameSession);

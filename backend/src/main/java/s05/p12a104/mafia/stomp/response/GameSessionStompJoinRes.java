@@ -1,10 +1,11 @@
 package s05.p12a104.mafia.stomp.response;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import s05.p12a104.mafia.domain.entity.GameSession;
+import s05.p12a104.mafia.domain.entity.Player;
 import s05.p12a104.mafia.domain.enums.StompMessageType;
 
 @Getter
@@ -15,11 +16,12 @@ public class GameSessionStompJoinRes {
   private final String hostId;
   private final Map<String, PlayerStompJoinRes> playerMap;
 
-  public static GameSessionStompJoinRes of(GameSession gameSession) {
+  public static GameSessionStompJoinRes of(String hostId, List<Player> players) {
     Map<String, PlayerStompJoinRes> newPlayerMap = new HashMap<>();
-    gameSession.getPlayerMap().forEach((playerId, player) ->
-        newPlayerMap.put(playerId, PlayerStompJoinRes.of(player))
-    );
-    return new GameSessionStompJoinRes(gameSession.getHostId(), newPlayerMap);
+    for (Player player : players) {
+      newPlayerMap.put(player.getId(), PlayerStompJoinRes.of(player));
+    }
+
+    return new GameSessionStompJoinRes(hostId, newPlayerMap);
   }
 }

@@ -21,16 +21,18 @@ public class StompResForRejoiningPlayer {
   private final GameRole role;
   private final List<String> mafias;
 
-  public static StompResForRejoiningPlayer of(GameSession gameSession, String reJoiningplayerId) {
-    Map<String, StompExistingPlayer> playerMap = new HashMap<>();
-    gameSession.getPlayerMap().forEach((playerId, player) ->
-        playerMap.put(playerId, StompExistingPlayer.of(player))
-    );
-
-    Player rejoiningPlayer = gameSession.getPlayerMap().get(reJoiningplayerId);
-    GameStatus gameStatus = GameStatus.of(gameSession);
-
-    return new StompResForRejoiningPlayer(gameSession.getHostId(), gameStatus, playerMap,
-        rejoiningPlayer.getRole(), gameSession.getMafias());
+  public StompResForRejoiningPlayer(GameSession gameSession, List<Player> players, String reJoiningplayerId) {
+    this.playerMap = new HashMap<>();
+    Player rejoiningPlayer = null;
+    for (Player player : players) {
+      playerMap.put(player.getId(), StompExistingPlayer.of(player));
+      if (player.getId().equals(reJoiningplayerId)) {
+        rejoiningPlayer = player;
+      }
+    }
+    this.hostId = gameSession.getHostId();
+    this.gameStatus = GameStatus.of(gameSession);
+    this.role = rejoiningPlayer.getRole();
+    this.mafias = gameSession.getMafias();
   }
 }

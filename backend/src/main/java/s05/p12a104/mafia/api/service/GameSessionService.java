@@ -17,21 +17,21 @@ public interface GameSessionService {
 
   GameSessionJoinRes getPlayerJoinableState(String roomId, String playerId);
 
-  void removeGameSession(GameSession gameSession);
+  void deleteById(String roomId);
 
-  GameSession findById(String id);
+  GameSession findById(String roomId);
 
   void update(GameSession update);
 
   GameSessionJoinRes addUser(String roomId, String nickname);
 
-  GameSession removeUser(String roomId, String playerId);
+  void removeUser(String roomId, String playerId);
 
-  void startGame(GameSession gameSession);
+  void startGame(String roomId);
 
   boolean isDone(GameSession gameSession, List<String> victims);
 
-  void endGame(GameSession gameSession);
+  void endGame(String roomId);
 
-  Map<String, GameRole> addObserver(String roomId, String playerId);
+  Map<String, GameRole> getAllPlayerRole(String roomId, String playerId);
 }

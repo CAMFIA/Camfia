@@ -18,6 +18,7 @@ import s05.p12a104.mafia.domain.entity.Player;
 import s05.p12a104.mafia.domain.entity.Vote;
 import s05.p12a104.mafia.domain.enums.GamePhase;
 import s05.p12a104.mafia.domain.enums.GameRole;
+import s05.p12a104.mafia.domain.repository.PlayerRedisRepository;
 import s05.p12a104.mafia.domain.repository.VoteRepository;
 import s05.p12a104.mafia.redispubsub.RedisPublisher;
 import s05.p12a104.mafia.redispubsub.message.DayDiscussionMessage;
@@ -34,6 +35,7 @@ public class GameSessionVoteServiceImpl implements GameSessionVoteService {
   private final RedisPublisher redisPublisher;
   private final VoteRepository voteRepository;
   private final GameSessionService gameSessionService;
+  private final PlayerRedisRepository playerRedisRepository;
   private final ChannelTopic topicDayDiscussionFin;
   private final ChannelTopic topicDayEliminationFin;
   private final ChannelTopic topicNightVoteFin;
@@ -84,9 +86,12 @@ public class GameSessionVoteServiceImpl implements GameSessionVoteService {
 
     Vote vote = voteRepository.vote(voteId, playerId, req.getVote());
     GameSession gameSession = gameSessionService.findById(roomId);
-    Map<String, Player> playerMap = gameSession.getPlayerMap();
 
-    Map<String, String> roleVote = new HashMap();
+    List<Player> players = playerRedisRepository.findByRoomId(roomId);
+    Map<String, Player> playerMap = players.stream()
+        .collect(Collectors.toMap(Player::getId, p -> p));
+
+    Map<String, String> roleVote = new HashMap<>();
 
     vote.getVoteResult().forEach((id, player) -> {
       if (playerMap.get(id).getRole() == roleName) {
@@ -165,7 +170,10 @@ public class GameSessionVoteServiceImpl implements GameSessionVoteService {
       // 투표수 오름차순
       Collections.sort(suspects, (o1, o2) -> voteNum.get(o2).compareTo(voteNum.get(o1)));
 
-      Map<String, Player> playerMap = gameSession.getPlayerMap();
+      List<Player> players = playerRedisRepository.findByRoomId(gameSession.getRoomId());
+      Map<String, Player> playerMap = players.stream()
+          .collect(Collectors.toMap(Player::getId, p -> p));
+
       int voteMax = voteNum.get(suspects.get(0));
       for (String suspect : suspects) {
         // 동점자가 아니면 더이상 동점자가 없기때문에 끝내기
@@ -221,12 +229,12 @@ public class GameSessionVoteServiceImpl implements GameSessionVoteService {
   }
 
   private Map getNightVoteResult(GameSession gameSession, Map<String, String> voteResult) {
-    Map<GameRole, String> result = new HashMap();
-
-    Map<String, Player> playerMap = gameSession.getPlayerMap();
+    List<Player> players = playerRedisRepository.findByRoomId(gameSession.getRoomId());
+    Map<String, Player> playerMap = players.stream()
+        .collect(Collectors.toMap(Player::getId, p -> p));
 
     // 마피아가 아닌 직업들 결과에 담기
-    result = voteResult.entrySet().stream()
+    Map<GameRole, String> result = voteResult.entrySet().stream()
         .filter(e -> playerMap.get(e.getKey()).getRole() != GameRole.MAFIA)
         .filter(e -> e.getValue() != null)
         .collect(Collectors.toMap(e -> playerMap.get(e.getKey()).getRole(), e -> e.getValue()));

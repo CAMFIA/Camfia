@@ -7,19 +7,26 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisHash;
+import org.springframework.data.redis.core.index.Indexed;
 import s05.p12a104.mafia.domain.enums.Color;
 import s05.p12a104.mafia.domain.enums.GameRole;
 
 @Slf4j
 @Getter
 @Setter
+@RedisHash("Player")
 @Builder
 public class Player implements Serializable {
 
   @Id
   private final String id;
 
+  @Indexed
+  private final String roomId;
+
   private final String nickname;
+
 
   private GameRole role;
 
@@ -36,9 +43,10 @@ public class Player implements Serializable {
 
   private boolean isLeft;
 
-  public static PlayerBuilder builder(String id, String nickname, Color color) {
+  public static PlayerBuilder builder(String id, String roomId, String nickname, Color color) {
     return new PlayerBuilder()
         .id(id)
+        .roomId(roomId)
         .nickname(nickname)
         .color(color);
   }

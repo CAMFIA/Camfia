@@ -11,11 +11,11 @@ import s05.p12a104.mafia.domain.enums.RoomType;
 
 public class RoleUtils {
 
-  public static Map<GameRole, Integer> getRoleNum(GameSession gameSession) {
+  public static Map<GameRole, Integer> getRoleNum(GameSession gameSession, int playerCount) {
     Map<GameRole, Integer> roleNum = new HashMap<>();
 
     RoomType roomType = gameSession.getRoomType();
-    int num = gameSession.getPlayerMap().size();
+    int num = playerCount;
 
     int mafia = 0;
     int doctor = 0;
@@ -40,11 +40,11 @@ public class RoleUtils {
   }
 
   public static List<String> assignRole(Map<GameRole, Integer> roleNum,
-      Map<String, Player> players) {
+      List<Player> players) {
 
     List<String> mafias = new ArrayList<>();
 
-    players.forEach((playerId, player) -> {
+    for (Player player : players) {
       GameRole role = GameRole.getRandomRole();
       while (roleNum.get(role) == 0) {
         role = GameRole.getRandomRole();
@@ -56,7 +56,7 @@ public class RoleUtils {
       if (role == GameRole.MAFIA) {
         mafias.add(player.getId());
       }
-    });
+    }
 
     return mafias;
   }

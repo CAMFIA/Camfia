@@ -1,5 +1,6 @@
 package s05.p12a104.mafia.domain.dao;
 
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.List;
@@ -46,7 +47,7 @@ public class GameSessionDao {
   @Indexed
   private final String creatorEmail;
 
-  private final Map<String, Player> playerMap;
+//  private final Map<String, Player> playerMap;
 
   private final AccessType accessType;
 
