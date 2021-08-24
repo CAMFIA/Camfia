@@ -16,15 +16,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import s05.p12a104.mafia.api.service.GameSessionService;
-import s05.p12a104.mafia.api.service.GameSessionVoteService;
 import s05.p12a104.mafia.common.exception.RedissonLockNotAcquiredException;
 import s05.p12a104.mafia.domain.entity.GameSession;
 import s05.p12a104.mafia.domain.entity.Player;
 import s05.p12a104.mafia.domain.enums.GamePhase;
 import s05.p12a104.mafia.domain.repository.PlayerRedisRepository;
+import s05.p12a104.mafia.domain.enums.GameRole;
 import s05.p12a104.mafia.redispubsub.message.DayDiscussionMessage;
 import s05.p12a104.mafia.redispubsub.message.DayEliminationMessage;
 import s05.p12a104.mafia.stomp.response.GameStatusRes;
+import s05.p12a104.mafia.stomp.service.GameSessionVoteService;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -59,7 +60,6 @@ public class DayDiscussionFinSubscriber {
       }
 
       GameSession gameSession = null;
-      Map<String, String> alivePlayerMap = new HashMap<>();
       try {
         gameSession = gameSessionService.findById(roomId);
         List<String> suspiciousList = dayDisscusionMessage.getSuspiciousList();
@@ -80,26 +80,26 @@ public class DayDiscussionFinSubscriber {
 
         template.convertAndSend("/sub/" + roomId, GameStatusRes.of(gameSession, players));
 
-        for (Player player : players) {
-          if (player.isAlive()) {
-            alivePlayerMap.put(player.getId(), null);
-          }
-        }
+        Map<String, GameRole> alivePlayerRoles = players.stream()
+            .filter(Player::isAlive)
+            .collect(Collectors.toMap(Player::getId, Player::getRole));
+
+        log.info("Room {} start Day {} {} ", roomId, gameSession.getDay(), gameSession.getPhase());
+
+        gameSessionVoteService.startVote(roomId, gameSession.getPhaseCount(),
+            gameSession.getPhase(), gameSession.getTimer(), alivePlayerRoles);
 
       } finally {
         lock.unlock();
       }
 
-      gameSessionVoteService.startVote(roomId, gameSession.getPhase(), gameSession.getTimer(),
-          alivePlayerMap);
-      log.info("DAY_ELIMINATION 투표 생성! {}", roomId);
     } catch (JsonProcessingException e) {
       e.printStackTrace();
     }
   }
 
   private List<String> setDayElimination(GameSession gameSession, List<String> suspiciousList) {
-    log.info("suspiciousList : " + suspiciousList.toString());
+    log.info("suspiciousList : {} in Room {}", suspiciousList.toString(), gameSession.getRoomId());
 
     List<String> victims = new ArrayList<>();
     gameSession.changePhase(GamePhase.DAY_ELIMINATION, 30 * suspiciousList.size());

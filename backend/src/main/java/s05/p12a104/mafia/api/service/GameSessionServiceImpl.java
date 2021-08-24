@@ -1,12 +1,5 @@
 package s05.p12a104.mafia.api.service;
 
-import io.openvidu.java.client.ConnectionProperties;
-import io.openvidu.java.client.ConnectionType;
-import io.openvidu.java.client.OpenVidu;
-import io.openvidu.java.client.OpenViduHttpException;
-import io.openvidu.java.client.OpenViduJavaClientException;
-import io.openvidu.java.client.OpenViduRole;
-import io.openvidu.java.client.Session;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -16,14 +9,21 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.RedisKeyValueTemplate;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Service;
+import io.openvidu.java.client.ConnectionProperties;
+import io.openvidu.java.client.ConnectionType;
+import io.openvidu.java.client.OpenVidu;
+import io.openvidu.java.client.OpenViduHttpException;
+import io.openvidu.java.client.OpenViduJavaClientException;
+import io.openvidu.java.client.OpenViduRole;
+import io.openvidu.java.client.Session;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import s05.p12a104.mafia.api.requset.GameSessionPostReq;
 import s05.p12a104.mafia.api.response.GameSessionJoinRes;
 import s05.p12a104.mafia.api.response.PlayerJoinRoomState;
@@ -35,6 +35,7 @@ import s05.p12a104.mafia.common.exception.OverMaxIndividualRoomCountException;
 import s05.p12a104.mafia.common.exception.OverMaxPlayerCountException;
 import s05.p12a104.mafia.common.exception.OverMaxTotalRoomCountException;
 import s05.p12a104.mafia.common.exception.PlayerNotFoundException;
+import s05.p12a104.mafia.common.exception.PlayerNotLeftException;
 import s05.p12a104.mafia.common.exception.RedissonLockNotAcquiredException;
 import s05.p12a104.mafia.common.util.RoleUtils;
 import s05.p12a104.mafia.common.util.RoomIdUtils;
@@ -118,7 +119,7 @@ public class GameSessionServiceImpl implements GameSessionService {
           objRedisTemplate.opsForHash().get("GameSession:" + roomId, "state").toString());
       validateToBePossibleToJoin(gameState, players);
 
-      return new GameSessionJoinRes(PlayerJoinRoomState.JOINABLE, null, null);
+      return new GameSessionJoinRes(PlayerJoinRoomState.JOINABLE, null, null, null, null);
     }
 
     Player player = playerRedisRepository.findById(playerId)
@@ -127,12 +128,18 @@ public class GameSessionServiceImpl implements GameSessionService {
       throw new PlayerNotFoundException();
     }
 
+    if (!player.isLeft()) {
+      throw new PlayerNotLeftException();
+    }
+
     String sessionId = objRedisTemplate.opsForHash()
         .get("GameSession:" + roomId, "sessionId").toString();
     String token = createOpenViduToken(sessionId, player.getNickname());
-    objRedisTemplate.opsForHash().put("Player:" + playerId, "token", token);
-
-    return new GameSessionJoinRes(PlayerJoinRoomState.REJOIN, token, playerId);
+    player.setToken(token);
+    player.setLeft(false);
+    player.setLeftPhaseCount(null);
+    playerRedisRepository.save(player);
+    return new GameSessionJoinRes(PlayerJoinRoomState.REJOIN, player);
   }
 
   @Override
@@ -191,7 +198,7 @@ public class GameSessionServiceImpl implements GameSessionService {
         objRedisTemplate.opsForHash().put("GameSession:" + roomId, "hostId", playerId);
       }
 
-      return new GameSessionJoinRes(PlayerJoinRoomState.JOIN, token, playerId);
+      return new GameSessionJoinRes(PlayerJoinRoomState.JOIN, newPlayer);
 
     } finally {
       lock.unlock();
@@ -237,7 +244,7 @@ public class GameSessionServiceImpl implements GameSessionService {
     Player delPlayer = playerRedisRepository.findById(delPlayerId)
         .orElseThrow(PlayerNotFoundException::new);
 
-    if (!delPlayer.isAlive()) {
+    if (delPlayer.isLeft()) {
       return;
     }
 
@@ -330,6 +337,7 @@ public class GameSessionServiceImpl implements GameSessionService {
     for (Player player : players) {
       player.setAlive(true);
       player.setSuspicious(false);
+      player.setRole(GameRole.CIVILIAN);
       playerRedisRepository.save(player);
     }
 
@@ -347,6 +355,7 @@ public class GameSessionServiceImpl implements GameSessionService {
     gameSession.setAlivePlayer(players.size());
 
     // 역할 부여
+    log.info("Room {} assigns roles", gameSession.getRoomId());
     gameSession.setMafias(RoleUtils.assignRole(roleNum, players));
     for (Player player : players) {
       playerRedisRepository.save(player);
@@ -356,10 +365,11 @@ public class GameSessionServiceImpl implements GameSessionService {
     int notCivilianCnt = (int) players.stream()
         .filter(e -> e.getRole() != GameRole.CIVILIAN)
         .count();
-
     gameSession.setAliveNotCivilian(notCivilianCnt);
 
     update(gameSession);
+
+    log.info("Room {} start the game", roomId);
   }
 
   @Override
@@ -383,7 +393,9 @@ public class GameSessionServiceImpl implements GameSessionService {
       return true;
     }
 
-
+    log.info("Room {} check if anyone wins", gameSession.getRoomId());
+    log.info("Room {}: next phase - {}, victims - {}", gameSession.getRoomId(),
+        gameSession.getPhase(), victims);
 
     GameResult gameResult = GameResult.of(gameSession, victims);
     if (gameResult.getWinner() == null) {
@@ -401,6 +413,7 @@ public class GameSessionServiceImpl implements GameSessionService {
     gameSession.setTimer(TimeUtils.getFinTime(0));
     gameSession.setDay(0);
     gameSession.setAliveMafia(0);
+    gameSession.setFinishedTime(LocalDateTime.now());
 
     List<Player> players = playerRedisRepository.findByRoomId(roomId);
     for (Player player : players) {
@@ -410,6 +423,8 @@ public class GameSessionServiceImpl implements GameSessionService {
     }
 
     update(gameSession);
+
+    log.info("Set in the first state: the room id - {}", gameSession.getRoomId());
   }
 
   @Override
@@ -457,21 +472,4 @@ public class GameSessionServiceImpl implements GameSessionService {
       throw new OverMaxPlayerCountException();
     }
   }
-
-//  private void validateToBePossibleToJoin(GameSession gameSession) {
-//    if (gameSession.getState() == GameState.STARTED) {
-//      throw new AlreadyGameStartedException();
-//      List<Player> players = playerRedisRepository.findByRoomId(roomId);
-//      if (players.size() <= 0) {
-//        gameSessionRedisRepository.deleteById(roomId);
-//        return;
-//      }
-//
-//      if (gameSession.getPlayerMap().size() >= MAX_PLAYER_COUNT) {
-//        throw new OverMaxPlayerCountException();
-//      }
-//      objRedisTemplate.opsForHash()
-//          .put("GameSession:" + roomId, "hostId", players.get(0).getId());
-//    }
-//  }
 }

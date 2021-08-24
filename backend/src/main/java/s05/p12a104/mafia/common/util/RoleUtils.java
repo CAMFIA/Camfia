@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import s05.p12a104.mafia.domain.entity.GameSession;
 import s05.p12a104.mafia.domain.entity.Player;
 import s05.p12a104.mafia.domain.enums.GameRole;
@@ -39,24 +40,28 @@ public class RoleUtils {
 
   }
 
-  public static List<String> assignRole(Map<GameRole, Integer> roleNum,
-      List<Player> players) {
-
+  public static List<String> assignRole(Map<GameRole, Integer> roleNum, List<Player> players) {
     List<String> mafias = new ArrayList<>();
 
-    for (Player player : players) {
-      GameRole role = GameRole.getRandomRole();
-      while (roleNum.get(role) == 0) {
-        role = GameRole.getRandomRole();
-      }
+    int playerCount = players.size();
+    boolean[] isRole = new boolean[playerCount];
+    Random random = new Random();
+    roleNum.forEach((role, num) -> {
+      while (num-- > 0) {
+        int idx = -1;
+        do {
+          idx = random.nextInt(playerCount * 100) % playerCount;
+        } while (isRole[idx]);
 
-      player.setRole(role);
-      roleNum.put(role, roleNum.get(role) - 1);
+        Player player = players.get(idx);
+        player.setRole(role);
+        isRole[idx] = true;
 
-      if (role == GameRole.MAFIA) {
-        mafias.add(player.getId());
+        if (role == GameRole.MAFIA) {
+          mafias.add(player.getId());
+        }
       }
-    }
+    });
 
     return mafias;
   }

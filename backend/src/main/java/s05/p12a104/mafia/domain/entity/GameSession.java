@@ -5,9 +5,6 @@ import io.openvidu.java.client.Session;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.LinkedHashMap;
-import java.util.Date;
-import java.util.Map;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import lombok.AccessLevel;
@@ -55,8 +52,6 @@ public class GameSession {
   @NonNull
   private final String creatorEmail;
 
-//  private Map<String, Player> playerMap;
-
   @NonNull
   @Enumerated(EnumType.STRING)
   private final AccessType accessType;
@@ -90,10 +85,6 @@ public class GameSession {
     return new GameSessionBuilder().roomId(roomId).creatorEmail(creatorEmail).accessType(accessType)
         .roomType(roomType).createdTime(createdTime).session(session).state(GameState.READY);
   }
-
-//  public void setHostRandomly() {
-//    setHostId(playerMap.keySet().iterator().next());
-//  }
 
   public void eliminatePlayer(Player player) {
     alivePlayer--;

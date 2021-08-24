@@ -66,6 +66,10 @@ public class NightVoteFinSubscriber {
       String protectedPlayerId = roleVote.get(GameRole.DOCTOR);
       String suspectPlayerId = roleVote.get(GameRole.POLICE);
 
+      log.info("Room {} NightVote deadPlayer: {}", roomId, deadPlayerId);
+      log.info("Room {} NightVote protectedPlayer: {}", roomId, protectedPlayerId);
+      log.info("Room {} NightVote suspectPlayer: {}", roomId, suspectPlayerId);
+
       // 의사가 살렸을 경우 부활
       if (deadPlayerId != null && deadPlayerId.equals(protectedPlayerId)) {
         deadPlayerId = null;
@@ -89,6 +93,9 @@ public class NightVoteFinSubscriber {
           return;
         }
 
+        log.info("Room {} start Day {} {} ", gameSession.getRoomId(), gameSession.getDay(),
+            gameSession.getPhase());
+
         // 밤투표 결과
         template.convertAndSend("/sub/" + roomId, GameStatusKillRes.of(gameSession, players, deadPlayer));
 
@@ -108,15 +115,10 @@ public class NightVoteFinSubscriber {
         lock.unlock();
       }
 
-      log.info("deadPlayerId: " + deadPlayerId);
-      log.info("protectedPlayerId: " + protectedPlayerId);
-      log.info("suspectPlayerId: " + suspectPlayerId);
-
       // Timer를 돌릴 마땅한 위치가 없어서 추후에 통합 예정
-      Timer timer = new Timer();
       StartFinTimerTask task = new StartFinTimerTask(redisPublisher, topicStartFin);
       task.setRoomId(roomId);
-      timer.schedule(task, TimeUtils.convertToDate(gameSession.getTimer()));
+      new Timer().schedule(task, TimeUtils.convertToDate(gameSession.getTimer()));
     } catch (JsonProcessingException e) {
       e.printStackTrace();
     }
@@ -125,7 +127,7 @@ public class NightVoteFinSubscriber {
   private List<String> setNightToDay(GameSession gameSession, String deadPlayerId,
       String protectedPlayerId) {
     // 나간 사람 체크 및 기본 세팅
-    gameSession.changePhase(GamePhase.NIGHT_TO_DAY, 15);
+    gameSession.changePhase(GamePhase.NIGHT_TO_DAY, 7);
     List<String> victims = new ArrayList<>();
     List<Player> players = playerRedisRepository.findByRoomId(gameSession.getRoomId());
     for (Player player : players) {
@@ -133,6 +135,7 @@ public class NightVoteFinSubscriber {
         continue;
       }
       player.setAlive(false);
+      player.setLeftPhaseCount(null);
       playerRedisRepository.save(player);
       gameSession.eliminatePlayer(player);
       victims.add(player.getNickname());
@@ -148,6 +151,7 @@ public class NightVoteFinSubscriber {
         victims.add(deadplayer.getNickname());
       }
     }
+    log.info("Room {} NightVote deadPlayer: {}", gameSession.getRoomId(), deadPlayerId);
 
     gameSessionService.update(gameSession);
 

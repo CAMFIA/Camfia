@@ -5,7 +5,7 @@
     position: absolute;
     display: table;
     width: 45%;
-    height: 105%;
+    height: 103%;
 
     left: 30%;
 
@@ -97,16 +97,13 @@
 }
 
 .url-copy-text {
-    /* flex: auto; */
     font-size: 0.9em;
     text-shadow: 2px 1px 1px rgb(153, 65, 65);
-    /* width: 80%; */
 }
 
 #url-copy-btn {
-    /* width: 20%; */
     margin-left: 10px;
-    color: white;
+    color: salmon;
     cursor: pointer;
     transition: transform 0.2s ease-out;
     transition: color 0.2s ease-out;
@@ -124,15 +121,13 @@
 
 .card-box-parent {
     height: 90vh;
-    /* overflow: hidden; */
-    overflow: scroll;
+    /* overflow: scroll; */
 }
 .card-box {
     position: relative;
     margin-left: 5%;
     margin-right: 5%;
-    margin-top: 20px;
-    /* margin-bottom: 30px; */
+    margin-top: 30px;
     height: 28%;
     min-height: 190px;
 }

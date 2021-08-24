@@ -9,6 +9,7 @@
             :finishStartAnimation="state.finishStartAnimation"
             :role="state.role"
             :playerMe="state.playerMe"
+            :vote="state.vote"
             @emitConfirmDataUpdate="emitConfirmDataUpdate"
             @gameStart="sendMessageStart"
         ></nav-header>
@@ -210,6 +211,8 @@ export default {
             playerMe: {}, //publisher
             playersGameInfo: [], //player 정보 저장
 
+            vote: null,
+
             inviteUrl: "",
             //inviteurl 없애기
             closeInviteUrl: false,
@@ -228,6 +231,10 @@ export default {
             mafiaColor: "#DC143C",
             observerColor: "#008080",
             victimColor: "#FFDEAD",
+
+            dayConfirmMsg: `<br/><span style='font-size: 19px; color:skyblue'>모든 플레이어가 투표확정을 누르면 다음 페이즈로 넘어갑니다.</span>`,
+            eliminationConfirmMsg: `<br/><span style='font-size: 19px; color:skyblue'>최종 변론자를 클릭하지 않고 확정버튼을 누를 시 SAVE로 간주됩니다.</span>`,
+            nightConfirmMsg: `<br/><span style='font-size: 19px; color:skyblue'>마피아, 경찰, 의사 모두 투표확정을 누르면 낮으로 넘어갑니다.</span>`,
         });
 
         // 화상 채팅 관련
@@ -245,6 +252,7 @@ export default {
         // 세션 참가하기
         var joinSession = function() {
             // --- Get an OpenVidu object ---
+            console.log("JOIN SESSION");
             state.OV = new OpenVidu();
             state.OV.setAdvancedConfiguration({
                 noStreamPlayingEventExceptionTimeout: 10000,
@@ -274,9 +282,10 @@ export default {
                         suspicious: false,
                         voters: [],
                         isMafia: null,
-                        color: "",
+                        color: tmp[2],
                         isHost: false,
                         role: null,
+                        confirm: false,
                     });
                     // 플레이어 수 1 증가
                     state.playerNum += 1;
@@ -284,22 +293,20 @@ export default {
                     //stomp에서 color 값이 먼저 들어왔으면 tempPlayerMap에서 갱신
                     state.newSubscriberOn = true;
                     if (state.tempPlayerMap !== null) {
-                        // let idx = state.playersGameInfo.length;
-                        // let playerId = state.playersGameInfo[idx - 1].playerId;
-                        // state.playersGameInfo[idx - 1].color = state.tempPlayerMap[playerId].color;
-                        // state.tempPlayerMap = null;
-                        // state.newSubscriberOn = false;
-                        console.log("TEMP PLAYER MAP", state.tempPlayerMap);
+                        console.log("TEMP PLAYER MAP");
                         for (let i = 0; i < state.playersGameInfo.length; i++) {
                             let id = state.playersGameInfo[i].playerId;
-                            state.playersGameInfo[i]["color"] = state.tempPlayerMap[id]["color"];
-                            console.log(
-                                "playerId",
-                                id,
-                                " nickname",
-                                state.playersGameInfo[i].nickname
-                            );
-                            console.log("color", state.tempPlayerMap[id]["color"]);
+                            if (Object.keys(state.tempPlayerMap).includes(id)) {
+                                state.playersGameInfo[i]["color"] =
+                                    state.tempPlayerMap[id]["color"];
+
+                                console.log(
+                                    "nickname: ",
+                                    state.playersGameInfo[i].nickname,
+                                    "color",
+                                    state.playersGameInfo[i].color
+                                );
+                            }
                         }
 
                         state.tempPlayerMap = null;
@@ -379,7 +386,7 @@ export default {
 
             state.session
                 .connect(state.openviduToken, {
-                    clientData: `${state.myUserName},${state.playerId}`,
+                    clientData: `${state.myUserName},${state.playerId},${store.getters["ingame/getColor"]}`,
                 })
                 .then(() => {
                     // --- Get your own camera stream with the desired properties ---
@@ -387,7 +394,7 @@ export default {
                     let publisher = state.OV.initPublisher(undefined, {
                         audioSource: undefined, // The source of audio. If undefined default microphone
                         videoSource: undefined, // The source of video. If undefined default webcam
-                        publishAudio: false, // Whether you want to start publishing with your audio unmuted or not
+                        publishAudio: true, // Whether you want to start publishing with your audio unmuted or not
                         publishVideo: true, // Whether you want to start publishing with your video enabled or not
                         resolution: "311x170", // The resolution of your video
                         frameRate: 30, // The frame rate of your video
@@ -406,11 +413,12 @@ export default {
                         alive: true,
                         suspicious: false,
                         voters: [],
-                        color: "red",
+                        color: store.getters["ingame/getColor"],
                         isMafia: null,
                         isHost: false,
                         isTalking: false,
                         role: null,
+                        confirm: false,
                     };
 
                     state.newSubscriberOn = true;
@@ -588,16 +596,27 @@ export default {
                     for (let i = 0; i < state.playersGameInfo.length; i++) {
                         state.playersGameInfo[i][key] = message === null ? null : message;
                     }
+                    console.log("MESSAGE", message);
+                    console.log("PLAYERSGAMEINFO", state.playersGameInfo);
                 } else {
-                    state.playerMe[key] = message.playerMap[state.playerMe.playerId][key];
+                    let playerId = state.playerMe.playerId;
+                    console.log("INFOUPDATE", message);
+                    console.log("playerme id", playerId);
+                    console.log("playerMe", state.playerMe);
+                    if (Object.keys(message.playerMap).includes(playerId)) {
+                        state.playerMe[key] = message.playerMap[state.playerMe.playerId][key];
+                    }
                     // 만약 openVidu보다 먼저 stomp 정보 들어오는 경우 temp에 저장
                     if (!state.newSubscriberOn) {
                         state.tempPlayerMap = message.playerMap;
                     } else {
                         // 순서대로 들어왔을 경우 그대로 갱신
                         for (let i = 0; i < state.playersGameInfo.length; i++) {
-                            state.playersGameInfo[i][key] =
-                                message.playerMap[state.playersGameInfo[i].playerId][key];
+                            let playerId = state.playersGameInfo[i].playerId;
+                            if (Object.keys(message.playerMap).includes(playerId)) {
+                                state.playersGameInfo[i][key] =
+                                    message.playerMap[state.playersGameInfo[i].playerId][key];
+                            }
                         }
                         state.newSubscriberOn = false;
                     }
@@ -609,6 +628,7 @@ export default {
         function onMessageReceived(payload) {
             var message = JSON.parse(payload.body);
             if (message.type === "JOIN") {
+                console.log("JOIN");
                 infoUpdater("color", message);
                 infoUpdater("isHost", message);
             } else if (message.type === "LEAVE") {
@@ -649,6 +669,7 @@ export default {
                                 isHost: false,
                                 isTalking: false,
                                 role: null,
+                                confirm: false,
                             };
                             localSubscribers.push(tmpSubscriber);
                             localPlayersGameInfo.push(tmpPlayerGameInfo);
@@ -678,13 +699,18 @@ export default {
                         audio.play();
                         state.submessage = "";
                         if (state.role !== "OBSERVER") {
-                            state.message = `<span style='font-size: 25px; color:${state.dayColor}'>낮 투표시간</span>이 되었습니다. <br/> 각자 의심되는 사람을 지목해 주세요. <br/> 최다 득표를 한 사람들은 최종투표에 나가게 됩니다.`;
+                            state.message =
+                                `<span style='font-size: 25px; color:${state.dayColor}'>낮 투표시간</span>이 되었습니다. <br/> 각자 의심되는 사람을 지목해 주세요. <br/> 최다 득표를 한 사람들은 최종투표에 나가게 됩니다.` +
+                                state.dayConfirmMsg;
                         } else {
-                            state.message = `당신은 <span style='font-size: 25px; color:${state.observerColor}'>관전자</span>입니다. 투표하실 수 없습니다. <br/> 낮 투표시간</span>이 되었습니다. <br/> 각자 의심되는 사람을 지목해 주세요. <br/> 최다 득표를 한 사람들은 최종투표에 나가게 됩니다.`;
+                            state.message =
+                                `당신은 <span style='font-size: 25px; color:${state.observerColor}'>관전자</span>입니다. 투표하실 수 없습니다. <br/> 낮 투표시간</span>이 되었습니다. <br/> 각자 의심되는 사람을 지목해 주세요. <br/> 최다 득표를 한 사람들은 최종투표에 나가게 됩니다.` +
+                                state.dayConfirmMsg;
                         }
                         state.gameStatus = message.gameStatus;
                         state.newSubscriberOn = true;
                         infoUpdater("alive", message);
+                        infoUpdater("confirm", false);
                         store.dispatch("ingame/setPhase", state.gameStatus.phase);
                         if (state.role === "OBSERVER") {
                             for (let i = 0; i < state.subscribers.length; i++) {
@@ -703,14 +729,19 @@ export default {
                         audio.play();
                         state.vote = null;
                         if (state.role !== "OBSERVER") {
-                            state.message = `<span style='font-size: 25px; color:pink'>최종투표시간</span>이 되었습니다. <br/> 최종투표 후보자들 중에 제거할 사람을 클릭해 <span style='color:crimson;'>KILL</span>할 수 있습니다. <br/> 최다득표자는 제거됩니다.`;
+                            state.message =
+                                `<span style='font-size: 25px; color:pink'>최종투표시간</span>이 되었습니다. <br/> 최종투표 후보자들 중에 제거할 사람을 클릭해 <span style='color:crimson;'>KILL</span>할 수 있습니다. <br/> 최다득표자는 제거됩니다.` +
+                                state.eliminationConfirmMsg;
                         } else {
-                            state.message = `당신은 <span style='font-size: 25px; color:${state.observerColor}'>관전자</span>입니다. 투표하실 수 없습니다. <br/> <span style='font-size: 25px; color:pink'>최종투표시간</span>이 되었습니다. <br/> 최종투표 후보자들 중에 제거할 사람을 클릭해 <span style='color:crimson;'>KILL</span>할 수 있습니다. <br/> 최다득표자는 제거됩니다.`;
+                            state.message =
+                                `당신은 <span style='font-size: 25px; color:${state.observerColor}'>관전자</span>입니다. 투표하실 수 없습니다. <br/> <span style='font-size: 25px; color:pink'>최종투표시간</span>이 되었습니다. <br/> 최종투표 후보자들 중에 제거할 사람을 클릭해 <span style='color:crimson;'>KILL</span>할 수 있습니다. <br/> 최다득표자는 제거됩니다.` +
+                                state.eliminationConfirmMsg;
                         }
                         state.gameStatus = message.gameStatus;
                         state.newSubscriberOn = true;
                         infoUpdater("suspicious", message);
                         infoUpdater("voters", null);
+                        infoUpdater("confirm", false);
                         state.isConfirm = false;
                         store.dispatch("ingame/setPhase", state.gameStatus.phase);
                         break;
@@ -739,10 +770,12 @@ export default {
                                             break;
                                         }
                                     }
-                                    const victimJob = message.gameStatus.victimIsMafia
-                                        ? "마피아"
-                                        : "시민";
-                                    state.message = `낮의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 <span style="font-size:25px; color:${state.victimColor}">${victimJob}</span>이었습니다  곧 밤으로 넘어갑니다.`;
+                                    const victimJob = message.gameStatus.victimIsMafia;
+                                    if (victimJob) {
+                                        state.message = `낮의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 <s style="font-size:25px; color:${state.mafiaColor}">마피아</span> 입니다. 곧 밤으로 넘어갑니다.`;
+                                    } else {
+                                        state.message = `낮의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 마피아가 <span style="font-size:25px; color:${state.mafiaColor}">아닙니다</span>. 곧 밤으로 넘어갑니다.`;
+                                    }
 
                                     // 죽는 애니메이션
                                 }
@@ -756,6 +789,7 @@ export default {
                         infoUpdater("alive", message);
                         infoUpdater("suspicious", false);
                         infoUpdater("voters", null);
+                        infoUpdater("confirm", false);
                         state.isConfirm = false;
                         store.dispatch("ingame/setPhase", state.gameStatus.phase);
                         if (state.role === "OBSERVER") {
@@ -774,15 +808,25 @@ export default {
                         );
                         audio.play();
                         if (state.role === "MAFIA") {
-                            state.message = `<span style="font-size: 25px; color: ${state.nightColor};">밤</span>이 되었습니다. <span style="font-size: 25px; color: ${state.mafiaColor}">마피아</span>는 시민 중 제거할 사람을 투표하여 주시기 바랍니다. <br> 동료와 상의하여 한 명만 투표하실 수 있습니다.`;
+                            state.message =
+                                `<span style="font-size: 25px; color: ${state.nightColor};">밤</span>이 되었습니다. <span style="font-size: 25px; color: ${state.mafiaColor}">마피아</span>는 시민 중 제거할 사람을 투표하여 주시기 바랍니다. <br> 동료와 상의하여 한 명만 투표하실 수 있습니다.` +
+                                state.nightConfirmMsg;
                         } else if (state.role === "DOCTOR") {
-                            state.message = `<span style="font-size: 25px; color: ${state.nightColor};">밤</span>이 되었습니다. <span style="font-size: 25px; color:${state.doctorColor}">의사</span>는 시민 중 제거당할 것 같은 사람에게 투표하여 주시기 바랍니다.`;
+                            state.message =
+                                `<span style="font-size: 25px; color: ${state.nightColor};">밤</span>이 되었습니다. <span style="font-size: 25px; color:${state.doctorColor}">의사</span>는 시민 중 제거당할 것 같은 사람에게 투표하여 주시기 바랍니다.` +
+                                state.nightConfirmMsg;
                         } else if (state.role === "POLICE") {
-                            state.message = `<span style="font-size: 25px; color: ${state.nightColor};">밤</span>이 되었습니다. <span style="font-size: 25px; color: ${state.policeColor}">경찰</span>은 의심되는 사람을 지목하여 그 사람의 직업을 확인해보시기 바랍니다.`;
+                            state.message =
+                                `<span style="font-size: 25px; color: ${state.nightColor};">밤</span>이 되었습니다. <span style="font-size: 25px; color: ${state.policeColor}">경찰</span>은 의심되는 사람을 지목하여 그 사람의 직업을 확인해보시기 바랍니다.` +
+                                state.nightConfirmMsg;
                         } else if (state.role === "CIVILIAN") {
-                            state.message = `<span style="font-size: 25px; color: ${state.nightColor};">밤</span>이 되었습니다. 마이크와 비디오가 중단됩니다.`;
+                            state.message =
+                                `<span style="font-size: 25px; color: ${state.nightColor};">밤</span>이 되었습니다. 마이크와 비디오가 중단됩니다.` +
+                                state.nightConfirmMsg;
                         } else {
-                            state.message = `당신은 <span style="font-size: 25px; color: ${state.observerColor}">관전자</span>입니다. 투표하실 수 없습니다.<br/> <span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. 마이크와 비디오가 중단됩니다.`;
+                            state.message =
+                                `당신은 <span style="font-size: 25px; color: ${state.observerColor}">관전자</span>입니다. 투표하실 수 없습니다.<br/> <span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. 마이크와 비디오가 중단됩니다.` +
+                                state.nightConfirmMsg;
                         }
                         if (state.role === "MAFIA") {
                             for (let i = 0; i < state.subscribers.length; i++) {
@@ -834,8 +878,12 @@ export default {
                                     }
                                 }
                             }
-                            let victimJob = message.gameStatus.victimIsMafia ? "마피아" : "시민";
-                            state.message = `밤의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은  <span style="font-size:25px; color:${state.victimColor}">${victimJob}</span>이었습니다  곧 낮으로 넘어갑니다.`;
+                            let victimJob = message.gameStatus.victimIsMafia;
+                            if (victimJob) {
+                                state.message = `밤의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 <span style="font-size:25px; color:${state.mafiaColor}">마피아</span> 입니다. 곧 낮으로 넘어갑니다.`;
+                            } else {
+                                state.message = `밤의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 마피아가 <span style="font-size:25px; color:${state.mafiaColor}">아닙니다.</span> 곧 낮으로 넘어갑니다.`;
+                            }
                         } else {
                             state.message = "밤의 투표 결과, 아무도 죽지 않았습니다.";
                         }
@@ -843,6 +891,7 @@ export default {
                         state.newSubscriberOn = true;
                         infoUpdater("alive", message);
                         infoUpdater("voters", null);
+                        infoUpdater("confirm", false);
                         state.isConfirm = false;
                         for (let i = 0; i < state.subscribers.length; i++) {
                             if (!state.removeList.includes(i)) {
@@ -859,6 +908,29 @@ export default {
                             "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
                         );
                         audio.play();
+                        // 초기화
+                        state.role = undefined;
+                        if (state.jobClient) {
+                            state.jobClient.unsubscribe();
+                        }
+                        state.jobClient = undefined;
+                        state.mafias = undefined;
+                        state.submessage = "";
+                        state.publisher.publishAudio(true);
+                        state.publisher.publishVideo(true);
+                        for (let i = 0; i < state.subscribers.length; i++) {
+                            if (!state.removeList.includes(i)) {
+                                state.subscribers[i].subscribeToAudio(true);
+                                state.subscribers[i].subscribeToVideo(true);
+                            }
+                        }
+                        infoUpdater("alive", true);
+                        infoUpdater("suspicious", null);
+                        infoUpdater("voters", null);
+                        infoUpdater("isMafia", null);
+                        infoUpdater("confirm", false);
+                        state.vote = null;
+                        state.isConfirm = false;
                         if (message.gameStatus.turnOver === true) {
                             state.message = `게임이 종료되었습니다 <br> 15턴이 지나 자동으로 <span style="font-size: 25px; color:${state.civilColor}">시민측 진영</span>이 승리하였습니다. `;
                         } else {
@@ -872,21 +944,7 @@ export default {
                         break;
                     }
                     case "READY": {
-                        // 초기화
-                        state.role = undefined;
-                        state.gameStatus = {
-                            date: 0,
-                            phase: "READY",
-                            timer: 0,
-                            aliveMafia: 0,
-                        };
-                        if (state.jobClient) {
-                            state.jobClient.unsubscribe();
-                        }
-                        state.jobClient = undefined;
-                        state.mafias = undefined;
                         state.message = `최소 <span style='font-size:25px;'>4인</span> 이상부터 플레이가 가능합니다.`;
-                        state.submessage = "";
                         for (let j = state.subscribers.length - 1; j >= 0; j--) {
                             if (state.removeList.includes(j)) {
                                 state.subscribers.splice(j, 1);
@@ -895,25 +953,25 @@ export default {
                             }
                         }
                         state.removeList = [];
-                        state.publisher.publishAudio(true);
-                        state.publisher.publishVideo(true);
-                        for (let i = 0; i < state.subscribers.length; i++) {
-                            state.subscribers[i].subscribeToAudio(true);
-                            state.subscribers[i].subscribeToVideo(true);
-                        }
-                        infoUpdater("alive", true);
-                        infoUpdater("suspicious", null);
-                        infoUpdater("voters", null);
-                        infoUpdater("isMafia", null);
+                        state.gameStatus = message.gameStatus;
                         infoUpdater("isHost", message);
-                        state.vote = null;
-                        state.isConfirm = false;
                         store.dispatch("ingame/setPhase", state.gameStatus.phase);
                         break;
                     }
                 }
             } else if (message.type === "UPDATE") {
                 infoUpdater("voters", message);
+            } else if (message.type === "CONFIRM") {
+                let playerId = state.playerMe.playerId;
+                if (Object.keys(message.playerMap).includes(playerId)) {
+                    state.playerMe.confirm = message.playerMap[playerId].confirm;
+                }
+                for (let i = 0; i < state.playersGameInfo.length; i++) {
+                    let playerId = state.playersGameInfo[i].playerId;
+                    if (Object.keys(message.playerMap).includes(playerId)) {
+                        state.playersGameInfo[i].confirm = message.playerMap[playerId].confirm;
+                    }
+                }
             } else {
                 console.log(
                     `sorry, unexpected message type. this is what we'v got ${message.type}`
@@ -946,7 +1004,7 @@ export default {
                 } else if (state.role === "CIVILIAN") {
                     state.message = `게임이 시작되었습니다. <br/>당신은 <span style='font-size: 25px; color:${state.civilColor}'>시민</span>입니다. <br/>다른 시민들과 함께 마피아를 모두 제거하면 당신의 승리입니다.`;
                 } else {
-                    state.message = `당신은 <span style="font-size: 25px; color:${state.observerColor}>관전자</span>입니다. <br/>게임에 개입할 수는 없지만, 일어나고 있는 일들에 대한 모든 정보를 볼 수 있습니다.`;
+                    state.message = `당신은 <span style="font-size: 25px; color:${state.observerColor}">관전자</span>입니다. <br/>게임에 개입할 수는 없지만, 일어나고 있는 일들에 대한 모든 정보를 볼 수 있습니다.`;
                     state.publisher.publishAudio(false);
                     state.publisher.publishVideo(false);
                     for (let i = 0; i < state.subscribers.length; i++) {
@@ -984,10 +1042,23 @@ export default {
                 infoUpdater("color", message);
                 infoUpdater("nickname", message);
                 infoUpdater("isHost", message);
+                let playerId = state.playerMe.playerId;
+                if (Object.keys(message.playerMap).includes(playerId)) {
+                    state.playerMe.confirm = message.playerMap[playerId].confirm;
+                    if (state.playerMe.confirm === true) {
+                        state.isConfirm = true;
+                    }
+                }
+                for (let i = 0; i < state.playersGameInfo.length; i++) {
+                    let playerId = state.playersGameInfo[i].playerId;
+                    if (Object.keys(message.playerMap).includes(playerId)) {
+                        state.playersGameInfo[i].confirm = message.playerMap[playerId].confirm;
+                    }
+                }
                 state.role = message.role;
                 state.mafias = message.mafias;
                 if (state.role === "OBSERVER") {
-                    state.message = `당신은 <span style="font-size: 25px; color:${state.observerColor}>관전자</span>입니다. <br/>게임에 개입할 수는 없지만, 일어나고 있는 일들에 대한 모든 정보를 볼 수 있습니다.`;
+                    state.message = `당신은 <span style="font-size: 25px; color:${state.observerColor}">관전자</span>입니다. <br/>게임에 개입할 수는 없지만, 일어나고 있는 일들에 대한 모든 정보를 볼 수 있습니다.`;
                     state.publisher.publishAudio(false);
                     state.publisher.publishVideo(false);
                     for (let i = 0; i < state.subscribers.length; i++) {
@@ -1001,7 +1072,7 @@ export default {
                     infoUpdater("isMafia", null);
                 } else {
                     for (let i = 0; i < state.playersGameInfo.length; i++) {
-                        if (state.mafia.includes(state.playersGameInfo[i].playerId)) {
+                        if (state.mafias.includes(state.playersGameInfo[i].playerId)) {
                             state.playersGameInfo[i].isMafia = true;
                         } else {
                             state.playersGameInfo[i].isMafia = false;
@@ -1013,7 +1084,6 @@ export default {
                     onJobMessageReceived
                 );
                 if (state.role === "OBSERVER") {
-                    state.message = ``;
                     state.stompClient.send(`/pub/${state.mySessionId}/${state.role}`);
                 }
                 switch (message.gameStatus.phase) {
@@ -1035,13 +1105,18 @@ export default {
                         audio.play();
                         state.submessage = "";
                         if (state.role !== "OBSERVER") {
-                            state.message = `<span style='font-size: 25px; color:${state.dayColor}'>낮 투표시간</span>이 되었습니다. <br/> 각자 의심되는 사람을 지목해 주세요. <br/> 최다 득표를 한 사람들은 최종투표에 나가게 됩니다.`;
+                            state.message =
+                                `<span style='font-size: 25px; color:${state.dayColor}'>낮 투표시간</span>이 되었습니다. <br/> 각자 의심되는 사람을 지목해 주세요. <br/> 최다 득표를 한 사람들은 최종투표에 나가게 됩니다.` +
+                                state.dayConfirmMsg;
                         } else {
-                            state.message = `당신은 <span style='font-size: 25px; color:${state.observerColor}'>관전자</span>입니다. 투표하실 수 없습니다. <br/> 낮 투표시간</span>이 되었습니다. <br/> 각자 의심되는 사람을 지목해 주세요. <br/> 최다 득표를 한 사람들은 최종투표에 나가게 됩니다.`;
+                            state.message =
+                                `당신은 <span style='font-size: 25px; color:${state.observerColor}'>관전자</span>입니다. 투표하실 수 없습니다. <br/> 낮 투표시간</span>이 되었습니다. <br/> 각자 의심되는 사람을 지목해 주세요. <br/> 최다 득표를 한 사람들은 최종투표에 나가게 됩니다.` +
+                                state.dayConfirmMsg;
                         }
                         state.gameStatus = message.gameStatus;
                         state.newSubscriberOn = true;
                         infoUpdater("alive", message);
+                        infoUpdater("confirm", false);
                         store.dispatch("ingame/setPhase", state.gameStatus.phase);
                         break;
                     }
@@ -1052,13 +1127,18 @@ export default {
                         audio.play();
                         state.vote = null;
                         if (state.role !== "OBSERVER") {
-                            state.message = `<span style='font-size: 25px; color:pink'>최종투표시간</span>이 되었습니다. <br/> 최종투표 후보자들 중에 제거할 사람을 클릭해 <span style='color:crimson;'>KILL</span>할 수 있습니다. <br/> 최다득표자는 제거됩니다.`;
+                            state.message =
+                                `<span style='font-size: 25px; color:pink'>최종투표시간</span>이 되었습니다. <br/> 최종투표 후보자들 중에 제거할 사람을 클릭해 <span style='color:crimson;'>KILL</span>할 수 있습니다. <br/> 최다득표자는 제거됩니다.` +
+                                state.eliminationConfirmMsg;
                         } else {
-                            state.message = `당신은 <span style='font-size: 25px; color:${state.observerColor}'>관전자</span>입니다. 투표하실 수 없습니다. <br/> <span style='font-size: 25px; color:pink'>최종투표시간</span>이 되었습니다. <br/> 최종투표 후보자들 중에 제거할 사람을 클릭해 <span style='color:crimson;'>KILL</span>할 수 있습니다. <br/> 최다득표자는 제거됩니다.`;
+                            state.message =
+                                `당신은 <span style='font-size: 25px; color:${state.observerColor}'>관전자</span>입니다. 투표하실 수 없습니다. <br/> <span style='font-size: 25px; color:pink'>최종투표시간</span>이 되었습니다. <br/> 최종투표 후보자들 중에 제거할 사람을 클릭해 <span style='color:crimson;'>KILL</span>할 수 있습니다. <br/> 최다득표자는 제거됩니다.` +
+                                state.eliminationConfirmMsg;
                         }
                         state.gameStatus = message.gameStatus;
                         infoUpdater("suspicious", message);
                         infoUpdater("voters", null);
+                        infoUpdater("confirm", false);
                         state.isConfirm = false;
                         store.dispatch("ingame/setPhase", state.gameStatus.phase);
                         break;
@@ -1087,10 +1167,12 @@ export default {
                                             break;
                                         }
                                     }
-                                    let victimJob = message.gameStatus.victimIsMafia
-                                        ? "마피아"
-                                        : "시민";
-                                    state.message = `낮의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 <span style="font-size:25px; color:${state.victimColor}">${victimJob}</span>이었습니다  곧 밤으로 넘어갑니다.`;
+                                    let victimJob = message.gameStatus.victimIsMafia;
+                                    if (victimJob) {
+                                        state.message = `낮의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 <span style="font-size:25px; color:${state.mafiaColor}">마피아</span> 입니다. 곧 밤으로 넘어갑니다.`;
+                                    } else {
+                                        state.message = `낮의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 마피아가 <span style="font-size:25px; color:${state.mafiaColor}">아닙니다</span>.  곧 밤으로 넘어갑니다.`;
+                                    }
                                 }
                             } else {
                                 state.message =
@@ -1102,6 +1184,7 @@ export default {
                         infoUpdater("alive", message);
                         infoUpdater("suspicious", null);
                         infoUpdater("voters", null);
+                        infoUpdater("confirm", false);
                         state.isConfirm = false;
                         store.dispatch("ingame/setPhase", state.gameStatus.phase);
                         break;
@@ -1112,15 +1195,25 @@ export default {
                         );
                         audio.play();
                         if (state.role === "MAFIA") {
-                            state.message = `<span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. <span style="font-size: 25px; color: ${state.mafiaColor}">마피아</span>는 시민 중 제거할 사람을 투표하여 주시기 바랍니다. <br> 동료와 상의하여 한 명만 투표하실 수 있습니다.`;
+                            state.message =
+                                `<span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. <span style="font-size: 25px; color: ${state.mafiaColor}">마피아</span>는 시민 중 제거할 사람을 투표하여 주시기 바랍니다. <br> 동료와 상의하여 한 명만 투표하실 수 있습니다.` +
+                                state.nightConfirmMsg;
                         } else if (state.role === "DOCTOR") {
-                            state.message = `<span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. <span style="font-size: 25px; color:${state.doctorColor}">의사</span>는 시민 중 제거당할 것 같은 사람에게 투표하여 주시기 바랍니다.`;
+                            state.message =
+                                `<span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. <span style="font-size: 25px; color:${state.doctorColor}">의사</span>는 시민 중 제거당할 것 같은 사람에게 투표하여 주시기 바랍니다.` +
+                                state.nightConfirmMsg;
                         } else if (state.role === "POLICE") {
-                            state.message = state.message = `<span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. <span style="font-size: 25px; color: ${state.policeColor}">경찰</span>은 의심되는 사람을 지목하여 그 사람의 직업을 확인해보시기 바랍니다.`;
+                            state.message = state.message =
+                                `<span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. <span style="font-size: 25px; color: ${state.policeColor}">경찰</span>은 의심되는 사람을 지목하여 그 사람의 직업을 확인해보시기 바랍니다.` +
+                                state.nightConfirmMsg;
                         } else if (state.role === "CIVILIAN") {
-                            state.message = `<span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. 마이크와 비디오가 중단됩니다.`;
+                            state.message =
+                                `<span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. 마이크와 비디오가 중단됩니다.` +
+                                state.nightConfirmMsg;
                         } else {
-                            state.message = `당신은 <span style="font-size: 25px; color: ${state.observerColor}">관전자</span>입니다. 투표하실 수 없습니다.<br/> <span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. 마이크와 비디오가 중단됩니다.`;
+                            state.message =
+                                `당신은 <span style="font-size: 25px; color: ${state.observerColor}">관전자</span>입니다. 투표하실 수 없습니다.<br/> <span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. 마이크와 비디오가 중단됩니다.` +
+                                state.nightConfirmMsg;
                         }
                         if (state.role === "MAFIA") {
                             for (let i = 0; i < state.subscribers.length; i++) {
@@ -1172,8 +1265,12 @@ export default {
                                     }
                                 }
                             }
-                            let victimJob = message.gameStatus.victimIsMafia ? "마피아" : "시민";
-                            state.message = `밤의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 <span style="font-size:25px; color:${state.victimColor}">${victimJob}</span>이었습니다  곧 낮으로 넘어갑니다.`;
+                            let victimJob = message.gameStatus.victimIsMafia;
+                            if (victimJob) {
+                                state.message = `밤의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 <span style="font-size:25px; color:${state.mafiaColor}">마피아</span> 입니다. 곧 낮으로 넘어갑니다.`;
+                            } else {
+                                state.message = `밤의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 마피아가 <span style="font-size:25px; color:${state.mafiaColor}">아닙니다</span>. 곧 낮으로 넘어갑니다.`;
+                            }
                         } else {
                             state.message = "밤의 투표 결과, 아무도 죽지 않았습니다.";
                         }
@@ -1181,6 +1278,7 @@ export default {
                         state.newSubscriberOn = true;
                         infoUpdater("alive", message);
                         infoUpdater("voters", null);
+                        infoUpdater("confirm", false);
                         state.isConfirm = false;
                         for (let i = 0; i < state.subscribers.length; i++) {
                             state.subscribers[i].subscribeToAudio(true);
@@ -1204,6 +1302,7 @@ export default {
                                 state.message = `게임이 종료되었습니다. <br> <span style="font-size:25px; color:${state.victimColor}">${victims}</span>가 사망하며 마피아를 모두 제거하였기 때문에 <span style="font-size: 25px; color:${state.civilColor}">시민측 진영</span>이 승리하였습니다.`;
                             }
                         }
+                        state.gameStatus = message.gameStatus;
                         break;
                     }
                 }
@@ -1233,6 +1332,17 @@ export default {
             } else if (message.type === "DEAD") {
                 state.newSubscriberOn = true;
                 infoUpdater("role", message);
+            } else if (message.type === "CONFIRM") {
+                let playerId = state.playerMe.playerId;
+                if (Object.keys(message.playerMap).includes(playerId)) {
+                    state.playerMe.confirm = message.playerMap[playerId].confirm;
+                }
+                for (let i = 0; i < state.playersGameInfo.length; i++) {
+                    let playerId = state.playersGameInfo[i].playerId;
+                    if (Object.keys(message.playerMap).includes(playerId)) {
+                        state.playersGameInfo[i].confirm = message.playerMap[playerId].confirm;
+                    }
+                }
             }
         }
 
@@ -1303,6 +1413,7 @@ export default {
                 ) {
                     sendMessageConfirm();
                 } else if (state.gameStatus.phase === "NIGHT_VOTE") {
+                    console.log("night vote confirm");
                     sendMessageNightConfirm();
                 }
             }
@@ -1329,6 +1440,7 @@ export default {
             state.playersGameInfo = localPlayersGameInfo;
             console.log("setup state.playersGameInfo");
             console.log(state.playersGameInfo);
+            state.playerNum = state.subscribers.length;
             for (let i; i < state.subscribers.length; i++) {
                 state.removeList.push(i);
             }
@@ -1341,7 +1453,7 @@ export default {
         state.playerId = store.getters["token/getPlayerId"];
         console.log(state.playerId);
         joinSession();
-        setTimeout(connect, 500);
+        setTimeout(connect, 700);
 
         window.onbeforeunload = function(event) {
             leave();
@@ -1361,9 +1473,7 @@ export default {
     },
     watch: {
         $route(to, from) {
-            if (confirm("정말 나가시겠습니까?")) {
-                this.leave();
-            }
+            this.leave();
         },
     },
 };

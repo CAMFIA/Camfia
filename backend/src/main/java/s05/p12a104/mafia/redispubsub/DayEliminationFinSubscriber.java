@@ -75,8 +75,11 @@ public class DayEliminationFinSubscriber {
         }
         Player deadPlayer = deadPlayerOptional.get();
 
+        log.info("Room {} start Day {} {} ", roomId, gameSession.getDay(), gameSession.getPhase());
+
         // 밤투표 결과
-        template.convertAndSend("/sub/" + roomId, GameStatusKillRes.of(gameSession, players, deadPlayer));
+        template.convertAndSend("/sub/" + roomId,
+            GameStatusKillRes.of(gameSession, players, deadPlayer));
 
         // 사망자 OBSERVER 변경
         template.convertAndSend("/sub/" + roomId + "/" + deadPlayerId, PlayerDeadRes.of());
@@ -86,18 +89,15 @@ public class DayEliminationFinSubscriber {
       }
 
       // Timer를 돌릴 마땅한 위치가 없어서 추후에 통합 예정
-      Timer timer = new Timer();
       StartFinTimerTask task = new StartFinTimerTask(redisPublisher, topicDayToNightFin);
       task.setRoomId(roomId);
-      timer.schedule(task, TimeUtils.convertToDate(gameSession.getTimer()));
+      new Timer().schedule(task, TimeUtils.convertToDate(gameSession.getTimer()));
     } catch (JsonProcessingException e) {
       e.printStackTrace();
     }
   }
 
   private List<String> setDayToNight(GameSession gameSession, String deadPlayerId) {
-    log.info("deadPlayer: " + deadPlayerId);
-
     // 나간 사람 체크 및 기본 세팅
     gameSession.changePhase(GamePhase.DAY_TO_NIGHT, 15);
     List<String> victims = new ArrayList<>();
@@ -106,15 +106,17 @@ public class DayEliminationFinSubscriber {
       // suspicious 초기화
       player.setSuspicious(false);
 
-      if (!player.isLeft() || player.getLeftPhaseCount() >= gameSession.getPhaseCount()) {
+      if (!player.isLeft() || player.getLeftPhaseCount() == null
+          || player.getLeftPhaseCount() >= gameSession.getPhaseCount()) {
         continue;
       }
       player.setAlive(false);
+      player.setLeftPhaseCount(null);
       playerRedisRepository.save(player);
       gameSession.eliminatePlayer(player);
       victims.add(player.getNickname());
     }
-    
+
     // 사망 처리
     Optional<Player> deadPlayerOptional = playerRedisRepository.findById(deadPlayerId);
     if (deadPlayerOptional.isPresent()) {
@@ -126,6 +128,7 @@ public class DayEliminationFinSubscriber {
         victims.add(deadplayer.getNickname());
       }
     }
+    log.info("Room {} ElimainationVote deadPlayer: {}", gameSession.getRoomId(), deadPlayerId);
 
     gameSessionService.update(gameSession);
 

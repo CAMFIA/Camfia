@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -15,13 +14,14 @@ import org.redisson.api.RedissonClient;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import s05.p12a104.mafia.api.service.GameSessionService;
-import s05.p12a104.mafia.api.service.GameSessionVoteService;
 import s05.p12a104.mafia.common.exception.RedissonLockNotAcquiredException;
 import s05.p12a104.mafia.domain.entity.GameSession;
 import s05.p12a104.mafia.domain.entity.Player;
 import s05.p12a104.mafia.domain.enums.GamePhase;
+import s05.p12a104.mafia.domain.enums.GameRole;
 import s05.p12a104.mafia.domain.repository.PlayerRedisRepository;
 import s05.p12a104.mafia.stomp.response.GameStatusRes;
+import s05.p12a104.mafia.stomp.service.GameSessionVoteService;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -65,6 +65,7 @@ public class StartFinSubscriber {
             continue;
           }
           player.setAlive(false);
+          player.setLeftPhaseCount(null);
           playerRedisRepository.save(player);
           gameSession.eliminatePlayer(player);
           victims.add(player.getNickname());
@@ -76,20 +77,20 @@ public class StartFinSubscriber {
           return;
         }
 
-        log.info("Start Day " + gameSession.getDay());
+        log.info("Room {} start Day {} {} ", gameSession.getRoomId(), gameSession.getDay(),
+            gameSession.getPhase());
 
         template.convertAndSend("/sub/" + roomId, GameStatusRes.of(gameSession, players));
 
-        Map<String, String> alivePlayerMap = new HashMap<>();
+        Map<String, GameRole> alivePlayerMap = new HashMap<>();
         for (Player player : players) {
           if (player.isAlive()) {
-            alivePlayerMap.put(player.getId(), null);
+            alivePlayerMap.put(player.getId(), player.getRole());
           }
         }
 
-        gameSessionVoteService.startVote(roomId, gameSession.getPhase(), gameSession.getTimer(),
-            alivePlayerMap);
-        log.info("DAY_DISCUSSION 투표 생성! - {}", roomId);
+        gameSessionVoteService.startVote(roomId, gameSession.getPhaseCount(),
+            gameSession.getPhase(), gameSession.getTimer(), alivePlayerMap);
 
       } finally {
         lock.unlock();

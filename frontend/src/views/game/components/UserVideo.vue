@@ -48,13 +48,21 @@
                 <span class="font-jua role-title">{{ this.playersGameInfo.role }}</span>
             </div>
 
+            <!-- confirm 표시 -->
+            <img
+                v-if="this.playersGameInfo.confirm"
+                class="confirm"
+                src="../../../assets/image/confirm.png"
+            />
+
             <!-- 투표칸 -->
             <div class="vote-box" v-if="this.playersGameInfo.voters.length != 0">
                 <span
                     v-for="voter in this.playersGameInfo.voters"
                     :key="voter"
                     class="voter-icon-span"
-                    ><i class="fas fa-user-circle fa-2x voter-icon" :style="'color:' + voter"></i
+                    :class="[this.playersGameInfo.voters.length >= 5 ? 'fa-lg' : 'fa-2x']"
+                    ><i class="fas fa-user-circle voter-icon" :style="'color:' + voter"></i
                 ></span>
             </div>
         </div>
@@ -67,7 +75,7 @@ import "./uservideo.css";
 
 var colorCode = {
     RED: "#DC143C",
-    YELLOW: "#FFFF00",
+    YELLOW: "#fbec5d",
     GREEN: "#228B22",
     PURPLE: "#9400D3",
     ORANGE: "#FF8C00",
@@ -76,6 +84,7 @@ var colorCode = {
     AQUAMARINE: "#00CED1",
     BLUE: "#0000CD",
     GRAY: "#778899",
+    SKYBLUE: "#89CFF0",
 };
 export default {
     name: "UserVideo",
@@ -92,9 +101,11 @@ export default {
         role: String,
         playerMe: Boolean,
     },
-
     computed: {
         getColor() {
+            if (this.playersGameInfo != null && this.playersGameInfo.color == "") {
+                return colorCode["SKYBLUE"];
+            }
             let color = colorCode[this.playersGameInfo.color];
             return color;
         },

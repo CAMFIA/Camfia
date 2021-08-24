@@ -24,7 +24,7 @@
             </div>
             <div style="margin-left: 120px">
                 <img
-                    src="https://www.clipartmax.com/png/full/110-1108103_home-expansion-syndicate-mafia-logo.png"
+                    src="../../../assets/image/alive.png"
                     alt=""
                     style="width: 50px; margin-right: 2% display: inline-block"
                 />
@@ -34,7 +34,7 @@
             <!-- playerNum가 4 이상 됐을 때 활성화 되기 -->
             <button
                 v-if="
-                    (this.currentPlayerNum < 1 || !this.isHost) && this.gameStatus.phase == 'READY'
+                    (this.currentPlayerNum < 4 || !this.isHost) && this.gameStatus.phase == 'READY'
                 "
                 class="font-jua"
                 id="start-button-inactive"
@@ -59,7 +59,7 @@
                 id="confirm-button"
                 ref="confirm"
             >
-                투표 확정
+                {{ getConfirmTitle }}
             </button>
 
             <span id="timer" class="font-jua">{{ this.time }}</span>
@@ -105,6 +105,7 @@ export default {
         finishStartAnimation: Boolean,
         playerMe: Object,
         role: String,
+        vote: String,
     },
     watch: {
         gameStatus: {
@@ -112,18 +113,28 @@ export default {
             handler() {
                 if (this.gameStatus.phase == "START") {
                     this.startCountDown();
-                } else if (this.getAlive && this.gameStatus.phase == "DAY_DISCUSSION") {
-                    this.$refs.confirm.classList.remove("unhover");
-                    this.$refs.confirm.classList.add("confirm-button-active");
+                } else if (this.gameStatus.phase == "READY") {
+                    if (this.interval) {
+                        clearInterval(this.interval);
+                    }
+                    this.time = this.gameStatus.timer; // 시간 초기화
+                    this.leftTime = 0;
+                } else if (this.gameStatus.phase == "DAY_DISCUSSION") {
+                    if (this.getAlive) {
+                        this.$refs.confirm.classList.remove("unhover");
+                        this.$refs.confirm.classList.add("confirm-button-active");
+                    }
                     this.startCountDown();
-                } else if (this.getAlive && this.gameStatus.phase == "DAY_ELIMINATION") {
-                    clearInterval(this.interval);
-                    this.$refs.confirm.classList.remove("unhover");
-                    this.$refs.confirm.classList.add("confirm-button-active");
+                } else if (this.gameStatus.phase == "DAY_ELIMINATION") {
+                    if (this.getAlive) {
+                        this.$refs.confirm.classList.remove("unhover");
+                        this.$refs.confirm.classList.add("confirm-button-active");
+                    }
                     this.startCountDown();
                 } else if (this.gameStatus.phase == "DAY_TO_NIGHT") {
                     this.$refs.confirm.classList.add("unhover");
                     this.$refs.confirm.classList.remove("confirm-button-active");
+
                     this.startCountDown();
                 } else if (this.gameStatus.phase == "NIGHT_VOTE") {
                     this.$refs.sun.classList.add("sun-logo-deactive");
@@ -190,6 +201,23 @@ export default {
         getAlive() {
             return this.playerMe.alive;
         },
+        getConfirmTitle() {
+            if (
+                this.gameStatus.phase == "DAY_DISCUSSION" ||
+                this.gameStatus.phase == "NIGHT_VOTE"
+            ) {
+                if (this.vote == null) {
+                    return "무효표 확정";
+                }
+            } else if (this.gameStatus.phase == "DAY_ELIMINATION") {
+                if (this.vote == null) {
+                    return "SAVE 확정";
+                } else {
+                    return "KILL 확정";
+                }
+            }
+            return "투표 확정";
+        },
     },
     methods: {
         gameStart() {
@@ -229,11 +257,12 @@ export default {
                 this.playerMe.alive &&
                 (this.gameStatus.phase == "DAY_DISCUSSION" ||
                     this.gameStatus.phase == "DAY_ELIMINATION" ||
-                    (this.gameStatus.phase == "NIGHT_VOTE" && this.playerMe.role != "CIVILIAN"))
+                    (this.gameStatus.phase == "NIGHT_VOTE" && this.role != "CIVILIAN"))
             ) {
-                this.$emit("emitConfirmDataUpdate");
+                console.log("click confirm");
                 this.$refs.confirm.classList.add("unhover");
                 this.$refs.confirm.classList.remove("confirm-button-active");
+                this.$emit("emitConfirmDataUpdate");
             }
         },
     },

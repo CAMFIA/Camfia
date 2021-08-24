@@ -5,9 +5,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Timer;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import java.util.concurrent.TimeUnit;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -33,6 +33,7 @@ import s05.p12a104.mafia.stomp.response.ObserverJoinRes;
 import s05.p12a104.mafia.stomp.response.PlayerRoleRes;
 import s05.p12a104.mafia.stomp.response.StompRejoinPlayer;
 import s05.p12a104.mafia.stomp.response.StompResForRejoiningPlayer;
+import s05.p12a104.mafia.stomp.service.GameSessionVoteService;
 import s05.p12a104.mafia.stomp.task.StartFinTimerTask;
 
 @Slf4j
@@ -44,12 +45,15 @@ public class RoomController {
   private final RedissonClient redissonClient;
   private final RedisTemplate<String, Object> objRedisTemplate;
   private final PlayerRedisRepository playerRedisRepository;
+  private final GameSessionVoteService gameSessionVoteService;
   private final SimpMessagingTemplate simpMessagingTemplate;
   private final RedisPublisher redisPublisher;
   private final ChannelTopic topicStartFin;
 
   @MessageMapping("/{roomId}/join")
   public void joinGameSession(@DestinationVariable String roomId) {
+    log.info("req STOMP /ws/gamesession/{roomId}/join, roomId : {}", roomId);
+
     if (objRedisTemplate.opsForHash().entries("GameSession:" + roomId).isEmpty()) {
       return;
     }
@@ -57,6 +61,8 @@ public class RoomController {
     List<Player> players = playerRedisRepository.findByRoomId(roomId);
 
     GameSessionStompJoinRes res = GameSessionStompJoinRes.of(hostId, players);
+
+    log.info("res STOMP /ws/gamesession/{roomId}/join -  roomid : {}, res : {}", roomId, res);
     simpMessagingTemplate.convertAndSend("/sub/" + roomId, res);
   }
 
@@ -64,8 +70,11 @@ public class RoomController {
   public void leaveGameSession(SimpMessageHeaderAccessor accessor,
       @DestinationVariable String roomId) {
     String playerId = accessor.getUser().getName();
+    log.info("req STOMP /ws/gamesession/{roomId}/leave - roomId : {}, playerId : {}", roomId,
+        playerId);
 
     gameSessionService.removeUser(roomId, playerId);
+
     // 마지막 player가 나가서 gameSession이 삭제되었는지 확인
     if (objRedisTemplate.opsForHash().entries("GameSession:" + roomId).isEmpty()) {
       return;
@@ -73,6 +82,8 @@ public class RoomController {
     String hostId = objRedisTemplate.opsForHash().get("GameSession:" + roomId, "hostId").toString();
 
     GameSessionStompLeaveRes res = new GameSessionStompLeaveRes(hostId, playerId);
+
+    log.info("res STOMP /ws/gamesession/{roomId}/leave - roomId : {}, res : {}", roomId, res);
     simpMessagingTemplate.convertAndSend("/sub/" + roomId, res);
   }
 
@@ -80,6 +91,8 @@ public class RoomController {
   public void rejoinGameSession(SimpMessageHeaderAccessor accessor,
       @DestinationVariable String roomId) {
     String playerId = accessor.getUser().getName();
+    log.info("req STOMP /ws/gamesession/{roomId}/rejoin - roomId : {}, playerId : {}", roomId,
+        playerId);
     Optional<Player> playerOptional = playerRedisRepository.findById(playerId);
     if (!playerOptional.isPresent()) {
       return;
@@ -91,13 +104,21 @@ public class RoomController {
       return;
     }
 
+    Map<String, Boolean> confirmResult = gameSessionVoteService.getConfirm(roomId, playerId);
+    log.info("Room {} rejoin confirmSize {}", gameSession.getRoomId(), confirmResult.size());
+
     List<Player> players = playerRedisRepository.findByRoomId(roomId);
-    StompResForRejoiningPlayer ResForRejoiningPlayer =
-        new StompResForRejoiningPlayer(gameSession, players, playerId);
-    simpMessagingTemplate.convertAndSend("/sub/" + roomId + "/" + playerId, ResForRejoiningPlayer);
+    StompResForRejoiningPlayer resForRejoiningPlayer =
+        new StompResForRejoiningPlayer(gameSession, players, playerId, confirmResult);
+    simpMessagingTemplate.convertAndSend("/sub/" + roomId + "/" + playerId, resForRejoiningPlayer);
 
     StompRejoinPlayer resForExistingPlayer = StompRejoinPlayer.of(playerOptional.get());
     simpMessagingTemplate.convertAndSend("/sub/" + roomId, resForExistingPlayer);
+
+    log.info("req STOMP /ws/gamesession/{roomId}/rejoin - roomId : {}, resForRejoiningPlayer : {}",
+        roomId, resForRejoiningPlayer);
+    log.info("req STOMP /ws/gamesession/{roomId}/rejoin - roomId : {}, resForExistingPlayer : {}",
+        roomId, resForExistingPlayer);
   }
 
   @MessageMapping("/{roomId}/start")
@@ -119,7 +140,8 @@ public class RoomController {
       // 방장이 시작했는지 확인
       GameSession gameSession = gameSessionService.findById(roomId);
       String playerId = accessor.getUser().getName();
-      if (gameSession.getState() == GameState.STARTED || !playerId.equals(gameSession.getHostId())) {
+      if (gameSession.getState() == GameState.STARTED || !playerId
+          .equals(gameSession.getHostId())) {
         return;
       }
 
@@ -127,15 +149,17 @@ public class RoomController {
       gameSessionService.startGame(roomId);
       gameSession = gameSessionService.findById(roomId);
 
-      Timer timer = new Timer();
       StartFinTimerTask task = new StartFinTimerTask(redisPublisher, topicStartFin);
       task.setRoomId(roomId);
-      timer.schedule(task, TimeUtils.convertToDate(gameSession.getTimer()));
+      new Timer().schedule(task, TimeUtils.convertToDate(gameSession.getTimer()));
 
       List<Player> players = playerRedisRepository.findByRoomId(roomId);
 
+      log.info("Room {} start game", roomId);
+
       // 전체 전송
-      simpMessagingTemplate.convertAndSend("/sub/" + roomId, GameStatusRes.of(gameSession, players));
+      simpMessagingTemplate
+          .convertAndSend("/sub/" + roomId, GameStatusRes.of(gameSession, players));
       // 개인 전송
       for (Player player : players) {
         if (player.getRole() == GameRole.MAFIA) {
@@ -153,8 +177,10 @@ public class RoomController {
   }
 
   @MessageMapping("/{roomId}/OBSERVER")
-  public void observerJoin(SimpMessageHeaderAccessor accessor, @DestinationVariable String roomId) {
+  public void observerJoin(SimpMessageHeaderAccessor accessor, @DestinationVariable String
+      roomId) {
     String playerId = accessor.getUser().getName();
+    log.info("req STOMP /ws/gamesession/{}/OBSERVER - playerId : {}", roomId, playerId);
 
     Map<String, GameRole> playersRole = gameSessionService.getAllPlayerRole(roomId, playerId);
     simpMessagingTemplate.convertAndSend("/sub/" + roomId + "/" + GameRole.OBSERVER,
