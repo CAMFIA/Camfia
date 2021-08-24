@@ -33,11 +33,7 @@ services:
     image: openvidu/openvidu-server-kms:2.19.0
     container_name: openvidu
     restart: always
-    #ports:
-    # - "3333:3333"
     env_file: prod.env
-    environment:
-      HTTPS_PORT: 3333
     networks:
       - internal_network
 

@@ -171,45 +171,6 @@
 <br>
 
 ## 🌐 배포 방법
-[frontend/src/constant/prod.js](./frontend/src/constant/prod.js)에서 올바른 도메인 이름으로 변경합니다.
-
-WebRTC를 사용하기 때문에 STUN/TURN 서버가 필요합니다.
-
-오픈 소스 프로젝트인 [coturn](https://github.com/coturn/coturn)을 설치하는 방법은 다음과 같습니다
-```sh
-sudo apt-get update && sudo apt-get install --no-install-recommends --yes coturn
-```
-
-`/etc/default/coturn`의 내용을 다음과 같이 수정합니다.
-```sh
-TURNSERVER_ENABLED=1
-```
-
-`/etc/turnserver.conf`의 내용을 다음과 같이 수정합니다.
-```sh
-listening-port=3478
-tls-listening-port=5349
-listening-ip=<EC2의 프라이빗 IPv4 주소>
-external-ip=<EC2의 퍼블릭 IPv4 주소>/<EC2의 프라이빗 IPv4 주소>
-relay-ip=<EC2의 프라이빗 IPv4 주소>
-fingerprint
-lt-cred-mech
-user=myuser:mypassword
-realm=myrealm
-log-file=/var/log/turn.log
-simple-log
-```
-
-coturn을 재기동합니다.
-```
-sudo service coturn restart
-```
-
-다음 명령어를 통해 coturn의 상태를 확인할 수 있습니다.
-```
-sudo systemctl status coturn
-```
-
 배포를 하기 위해서는 서버에 docker와 docker-compose가 설치되어 있어야 합니다.  
 docker는 [공식 웹페이지에 나와 있는 debian에서의 설치 방법](https://docs.docker.com/engine/install/debian/#install-using-the-repository)으로 설치하면 되고, docker-compose는 apt-get 명령어를 통해 설치가 가능합니다.
 
@@ -220,29 +181,34 @@ docker-compose up -d
 
 단, docker-compose를 실행하기 위해서는 `prod.env` 파일이 필요합니다. `prod.env`의 내용은 다음과 같습니다.
 ```env
+APP_DOMAIN=example.com
+APP_PUBLIC_IP=11.11.11.11
+APP_PRIVATE_IP=172.172.172.172
+OPENVIDU_HTTPS_PORT=3333
+
+# mysql
+MYSQL_USER=myuser
+MYSQL_PASSWORD=mypassword
+MYSQL_ROOT_PASSWORD=mypassword
+
 # backend
 GOOGLE_CLIENT_ID=1q2w3e4r-1q2w3e4r.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=4r3e2w1q4r3e2w1q
-SPRING_DATASOURCE_USERNAME=a104
-SPRING_DATASOURCE_PASSWORD=a1041234
+SPRING_DATASOURCE_USERNAME=${MYSQL_USER}
+SPRING_DATASOURCE_PASSWORD=${MYSQL_PASSWORD}
 JWT_SECRET=1q2w3e4r
-#OPENVIDU_URL=https://<service domain name>:3333/
-OPENVIDU_URL=https://openvidu:3333/
-APP_BASE_URL=https://<service domain name>
+OPENVIDU_URL=https://openvidu:${OPENVIDU_HTTPS_PORT}/
+APP_BASE_URL=https://${APP_DOMAIN}/
 
-# openvidu
-KMS_STUN_IP=<coturn server ip>
-KMS_STUN_PORT=3478
-KMS_TURN_URL=myuser:mypassword@<coturn server ip>:3478?transport=udp
-DOMAIN_OR_PUBLIC_IP=<service domain name>
+# openvidu - 다른 변수를 포함시키면 제대로 동작하지 않는다(값을 직접 입력해주어야 한다)
+KMS_STUN_IP=11.11.11.11
+KMS_STUN_PORT=8000
+KMS_TURN_URL=myuser:mypassword@11.11.11.11:8000?transport=udp
+DOMAIN_OR_PUBLIC_IP=example.com
+HTTPS_PORT=3333
 
 # backend & openvidu
 OPENVIDU_SECRET=MY_SECRET
-
-# mysql
-MYSQL_USER=a104
-MYSQL_PASSWORD=a1041234
-MYSQL_ROOT_PASSWORD=a1041234
 ```
 
 ### 첫 배포시 주의 사항
