@@ -1,8 +1,9 @@
+# syntax=docker/dockerfile:1
 FROM openjdk:8-jdk-alpine as build
 WORKDIR /workspace/app
 
 COPY . /workspace/app
-RUN ./gradlew clean bootJar
+RUN --mount=type=cache,target=/root/.gradle ./gradlew clean bootJar
 RUN mkdir -p build/dependency && (cd build/dependency; jar -xf ../libs/*.jar)
 
 FROM openjdk:8-jdk-alpine AS local
