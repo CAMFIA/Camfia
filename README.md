@@ -182,7 +182,7 @@ docker-compose up -d
 단, docker-compose를 실행하기 위해서는 `.env` 파일이 필요합니다. `.env`의 내용은 다음과 같습니다.
 ```env
 APP_DOMAIN=example.com
-LETSENCRYPT_EMAIL=example@email.com # 반드시 유요한 이메일 주소이어야 한다
+LETSENCRYPT_EMAIL=example@email.com # 반드시 유효한 이메일 주소이어야 한다
 APP_PUBLIC_IP=11.11.11.11
 APP_PRIVATE_IP=172.172.172.172
 OPENVIDU_HTTPS_PORT=3333
