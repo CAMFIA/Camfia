@@ -172,11 +172,17 @@
 
 ## 🌐 배포 방법
 배포를 하기 위해서는 서버에 docker와 docker-compose가 설치되어 있어야 합니다.  
-docker는 [공식 웹페이지에 나와 있는 debian에서의 설치 방법](https://docs.docker.com/engine/install/debian/#install-using-the-repository)으로 설치하면 되고, docker-compose는 apt-get 명령어를 통해 설치가 가능합니다.
+docker는 [공식 웹페이지에 나와 있는 debian에서의 설치 방법](https://docs.docker.com/engine/install/debian/#install-using-the-repository)으로 설치합니다.
+docker-compose도 마찬가지로 [공식 웹페이지 설치 방법](https://docs.docker.com/compose/install/)을 통해 설치합니다.
+
+docker buildkit을 위해 `docker/dockerfile:1` 이미지를 미리 pull 합니다.
+```sh
+docker pull docker/dockerfile:1
+```
 
 프로젝트의 root 위치에서 docker-compose를 실행하면 빌드 및 배포까지 자동으로 이루어집니다.
 ```sh
-docker-compose up -d
+DOCKER_BUILDKIT=1 docker-compose up -d
 ```
 
 단, docker-compose를 실행하기 위해서는 `.env` 파일이 필요합니다. `.env`의 내용은 다음과 같습니다.
