@@ -5,11 +5,11 @@ if ! [ -x "$(command -v docker-compose)" ]; then
   exit 1
 fi
 
-app_domain=$(grep -v '^#' prod.env | grep -e ^"APP_DOMAIN" | sed -e 's/.*=//') # APP_DOMAIN in prod.env
+app_domain=$(grep -v '^#' .env | grep -e ^"APP_DOMAIN" | sed -e 's/.*=//') # APP_DOMAIN in .env
 domains=($app_domain)
 rsa_key_size=4096
 data_path="./certbot"
-email=$(grep -v '^#' prod.env | grep -e ^"LETSENCRYPT_EMAIL" | sed -e 's/.*=//') # LETSENCRYPT_EMAIL in prod.env
+email=$(grep -v '^#' .env | grep -e ^"LETSENCRYPT_EMAIL" | sed -e 's/.*=//') # LETSENCRYPT_EMAIL in .env
 staging=0 # Set to 1 if you're testing your setup to avoid hitting request limits
 
 if [ -d "$data_path" ]; then

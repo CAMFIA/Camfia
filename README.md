@@ -179,7 +179,7 @@ docker는 [공식 웹페이지에 나와 있는 debian에서의 설치 방법](h
 docker-compose up -d
 ```
 
-단, docker-compose를 실행하기 위해서는 `prod.env` 파일이 필요합니다. `prod.env`의 내용은 다음과 같습니다.
+단, docker-compose를 실행하기 위해서는 `.env` 파일이 필요합니다. `.env`의 내용은 다음과 같습니다.
 ```env
 APP_DOMAIN=example.com
 LETSENCRYPT_EMAIL=example@email.com # 반드시 유요한 이메일 주소이어야 한다
