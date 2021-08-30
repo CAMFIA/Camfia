@@ -182,6 +182,7 @@ docker-compose up -d
 단, docker-compose를 실행하기 위해서는 `prod.env` 파일이 필요합니다. `prod.env`의 내용은 다음과 같습니다.
 ```env
 APP_DOMAIN=example.com
+LETSENCRYPT_EMAIL=example@email.com # 반드시 유요한 이메일 주소이어야 한다
 APP_PUBLIC_IP=11.11.11.11
 APP_PRIVATE_IP=172.172.172.172
 OPENVIDU_HTTPS_PORT=3333
@@ -213,8 +214,6 @@ OPENVIDU_SECRET=MY_SECRET
 
 ### 첫 배포시 주의 사항
 첫 배포시에는 [init-letsencrypt.sh](./init-letsencrypt.sh)을 실행시켜 certbot에 의해 SSL/TLS 인증서를 생성하도록 해야 합니다.
-
-init-letsencrypt.sh 내용에서 `domains`와 `data_path`, `email`을 알맞게 수정한 뒤 실행시키면 됩니다.
 
 
 ### 배포시 주의 사항
