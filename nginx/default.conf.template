@@ -5,7 +5,7 @@ upstream backend {
 server {
     listen 80;
     listen  [::]:80;
-    server_name i5a104.p.ssafy.io;
+    server_name ${APP_DOMAIN};
     location / {
         return 301 https://$host$request_uri;
     }
@@ -18,7 +18,7 @@ server {
 
 server {
     listen 443 ssl;
-    server_name i5a104.p.ssafy.io
+    server_name ${APP_DOMAIN}
 
     proxy_connect_timeout 1d;
     proxy_send_timeout 1d;
@@ -62,8 +62,8 @@ server {
     }
 
 
-    ssl_certificate /etc/letsencrypt/live/i5a104.p.ssafy.io/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/i5a104.p.ssafy.io/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/${APP_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${APP_DOMAIN}/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 }
@@ -74,7 +74,7 @@ upstream openvidu {
 
 server {
     listen 3333 ssl;
-    server_name i5a104.p.ssafy.io
+    server_name ${APP_DOMAIN}
 
     proxy_connect_timeout 1d;
     proxy_send_timeout 1d;
@@ -91,8 +91,8 @@ server {
     }
 
 
-    ssl_certificate /etc/letsencrypt/live/i5a104.p.ssafy.io/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/i5a104.p.ssafy.io/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/${APP_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${APP_DOMAIN}/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
