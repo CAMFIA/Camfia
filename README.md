@@ -226,10 +226,10 @@ cd /opt/openvidu
 ```
 
 <br>
-`.env` 파일에서 다음 항목을 설정합니다.
+`.env` 파일에서 다음 항목들을 설정합니다.
 ```sh
-DOMAIN_OR_PUBLIC_IP=
-OPENVIDU_SECRET=
+DOMAIN_OR_PUBLIC_IP=my-openvidu-server.com
+OPENVIDU_SECRET=MY_OPNEVIDU_SECRET
 
 # Certificate type:
 # - selfsigned:  Self signed certificate. Not recommended for production use.
@@ -242,7 +242,7 @@ OPENVIDU_SECRET=
 #                variable.
 CERTIFICATE_TYPE=letsencrypt
 
-LETSENCRYPT_EMAIL=user@example.com
+LETSENCRYPT_EMAIL=example@email.com
 ```
 
 `CERTIFICATE_TYPE`을 `letsencrypt`로 설정을 하기 위해서 `LETSENCRYPT_EMAIL`을 유효한 email로 설정해야 합니다.
@@ -343,7 +343,7 @@ SPRING_DATASOURCE_PASSWORD=${MYSQL_PASSWORD}
 JWT_SECRET=1q2w3e4r
 APP_BASE_URL=https://${APP_DOMAIN}/
 OPENVIDU_URL=https://my-openvidu-server.com/
-OPENVIDU_SECRET=MY_SECRET
+OPENVIDU_SECRET=MY_OPNEVIDU_SECRET
 ```
 
 ### 첫 배포시 주의 사항
