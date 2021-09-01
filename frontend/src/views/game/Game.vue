@@ -772,7 +772,7 @@ export default {
                                     }
                                     const victimJob = message.gameStatus.victimIsMafia;
                                     if (victimJob) {
-                                        state.message = `낮의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 <s style="font-size:25px; color:${state.mafiaColor}">마피아</span> 입니다. 곧 밤으로 넘어갑니다.`;
+                                        state.message = `낮의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 <span style="font-size:25px; color:${state.mafiaColor}">마피아</span> 입니다. 곧 밤으로 넘어갑니다.`;
                                     } else {
                                         state.message = `낮의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 마피아가 <span style="font-size:25px; color:${state.mafiaColor}">아닙니다</span>. 곧 밤으로 넘어갑니다.`;
                                     }
