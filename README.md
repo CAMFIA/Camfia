@@ -171,9 +171,149 @@
 <br>
 
 ## 🌐 배포 방법
-배포를 하기 위해서는 서버에 docker와 docker-compose가 설치되어 있어야 합니다.  
-docker는 [공식 웹페이지에 나와 있는 debian에서의 설치 방법](https://docs.docker.com/engine/install/debian/#install-using-the-repository)으로 설치합니다.
-docker-compose도 마찬가지로 [공식 웹페이지 설치 방법](https://docs.docker.com/compose/install/)을 통해 설치합니다.
+먼저, 서버가 2대 준비되어 있어야 합니다.
+- openvidu 서버
+- application 서버
+
+### openvidu 서버
+[openvidu에서 제공하는 on-premises 방식](https://docs.openvidu.io/en/2.19.0/deployment/ce/on-premises/)을 참고하여 설치합니다.
+
+#### [전제 조건](https://docs.openvidu.io/en/2.19.0/deployment/ce/on-premises/#1-prerequisites)
+- Docker가 설치되어 있어야 합니다([설치 방법](https://docs.docker.com/engine/install/debian/#install-using-the-repository))
+- `1.24` 이상 버전의 Docker Compose가 설치되어 있어야 합니다([설치 방법](https://docs.docker.com/compose/install/))
+- domain 이름 : https를 사용하기 때문에 domain 이름이 필요합니다
+- port 구성
+  - 다음 port는 열려 있어야 합니다.
+    - 22 TCP: to connect using SSH to admin OpenVidu.
+    - 80 TCP: if you select Let's Encrypt to generate an SSL certificate this port is used by the generation process.
+    - 443 TCP: OpenVidu server and application are published by default in standard https port.
+    - 3478 TCP+UDP: used by TURN server to resolve clients IPs.
+    - 40000 - 57000 TCP+UDP: used by Kurento Media Server to establish media connections.
+    - 57001 - 65535 TCP+UDP: used by TURN server to establish relayed media connections.
+  - 그 외의 모든 port는 닫혀 있어야 합니다.
+  - 다음 port에 대해서는 서버 안에서 다른 프로세스가 사용하지 않도록 한다. 다른 프로세스가 해당 port를 사용하게 되면 openvidu가 정상 동작하지 않을 수 있습니다.
+    - 80 : nginx(HTTP)
+    - 443 : nginx(HTTPS)
+    - 3478 : TRUN server
+    - 5442 : openvidu based applicaiton
+    - 5443 : openvidu server
+    - 6379 : redis for openvidu
+    - 8888 : KMS
+
+
+#### [openvidu 설치](https://docs.openvidu.io/en/2.19.0/deployment/ce/on-premises/#2-deployment)
+먼저 root 권한이 필요합니다.
+```sh
+sudo su
+```
+
+<br>
+openvidu 설치 위치인 `/opt`로 이동합니다.
+```sh
+cd /opt
+```
+
+<br>
+다음 명령어를 통해 openvidu를 설치합니다.
+```sh
+curl https://s3-eu-west-1.amazonaws.com/aws.openvidu.io/install_openvidu_latest.sh | bash
+```
+
+<br>
+/opt 하위에 openvidu 디렉터리가 생성됩니다. 해당 디렉터리로 이동합니다.
+```sh
+cd /opt/openvidu
+```
+
+<br>
+`.env` 파일에서 다음 항목들을 설정합니다.
+```sh
+DOMAIN_OR_PUBLIC_IP=my-openvidu-server.com
+OPENVIDU_SECRET=MY_OPNEVIDU_SECRET
+
+# Certificate type:
+# - selfsigned:  Self signed certificate. Not recommended for production use.
+#                Users will see an ERROR when connected to web page.
+# - owncert:     Valid certificate purchased in a Internet services company.
+#                Please put the certificates files inside folder ./owncert
+#                with names certificate.key and certificate.cert
+# - letsencrypt: Generate a new certificate using letsencrypt. Please set the
+#                required contact email for Let's Encrypt in LETSENCRYPT_EMAIL
+#                variable.
+CERTIFICATE_TYPE=letsencrypt
+
+LETSENCRYPT_EMAIL=example@email.com
+```
+
+`CERTIFICATE_TYPE`을 `letsencrypt`로 설정을 하기 위해서 `LETSENCRYPT_EMAIL`을 유효한 email로 설정해야 합니다.
+그리고 80 포트를 꼭 열어주어야 인증서를 받을 수 있습니다.
+
+<br>
+`/opt/openvidu` 위치에서 다음 명령어로 실행할 수 있습니다
+```sh
+./openvidu start
+```
+
+<br>
+(그 외의 명렁어는 [공식 reference 페이지](https://docs.openvidu.io/en/2.19.0/deployment/ce/on-premises/#5-administration)에서 확인할 수 있습니다).
+
+
+<br>
+참고로, `CERTIFICATE_TYPE`을 `letsencrypt`로 사용한다면 .env 파일에서 HTTPS_PORT를 변경하더라도 적용되지 않으니 default값인 443을 사용해야 합니다.  
+변경을 원한다면 [해당 reference 페이지](https://docs.openvidu.io/en/2.19.0/deployment/deploying-openvidu-apps/#in-a-different-port-as-openvidu ) 참고하면 됩니다.
+
+
+#### openvidu call application 제거 방법
+<https://docs.openvidu.io/en/2.19.0/deployment/deploying-openvidu-apps/#remove-openvidu-call-application>을 참고하였습니다.
+
+openvidu call application이 설치 시에 같이 설치되어 openvidu 실행시에도 같이 실행됩니다.
+
+<br>
+해당 app을 삭제하기 위해서 우선 openvidu를 종료합니다.
+
+```sh
+cd /opt/openvidu
+./openvidu stop
+```
+
+<br>
+`docker-compose.override.yml`을 삭제합니다.
+
+```sh
+rm docker-compose.override.yml
+```
+
+<br>
+openvidu를 다시 실행합니다.
+
+```sh
+ ./openvidu start
+```
+
+
+#### openvidu based application 배포 방법
+<https://docs.openvidu.io/en/2.19.0/deployment/deploying-openvidu-apps/#deploy-other-openvidu-based-application>을 참고하였습니다.
+
+다음 경로에 대해서는 사용하면 안 됩니다.
+- /openvidu/
+- /dashboard/ (only in OpenVidu CE)
+- /inspector/ (only in OpenVidu Pro)
+
+<br>
+dockerized가 되어 있다면 `/opt/openvidu/docker-compose.override.yml` 안에 작성하면 되고, openvidu platform과 생명주기를 같이 합니다.
+
+<br>
+다음 요구 사항이 지켜져야 합니다.
+- network_mode를 host로 해야 합니다.
+- Application은 반드시 https가 아닌 http이어야 합니다.
+- http port는 5442이어야 한다. Openvidu platform의 nginx 설정에서 해당 port로 되어 있습니다.
+- openvidu platform URL은 `http://localhost:5443`입니다.
+- openVidu secret은 환경변수 ${OPENVIDU_SECRET}로 활용 가능합니다.
+
+
+
+### application 서버
+우선, Docker와 Docker Compose가 되어 있어야 합니다.
 
 docker buildkit을 위해 `docker/dockerfile:1` 이미지를 미리 pull 합니다.
 ```sh
@@ -187,11 +327,8 @@ DOCKER_BUILDKIT=1 docker-compose up -d
 
 단, docker-compose를 실행하기 위해서는 `.env` 파일이 필요합니다. `.env`의 내용은 다음과 같습니다.
 ```env
-APP_DOMAIN=example.com
+APP_DOMAIN=my-app.com
 LETSENCRYPT_EMAIL=example@email.com # 반드시 유효한 이메일 주소이어야 한다
-APP_PUBLIC_IP=11.11.11.11
-APP_PRIVATE_IP=172.172.172.172
-OPENVIDU_HTTPS_PORT=3333
 
 # mysql
 MYSQL_USER=myuser
@@ -204,18 +341,9 @@ GOOGLE_CLIENT_SECRET=4r3e2w1q4r3e2w1q
 SPRING_DATASOURCE_USERNAME=${MYSQL_USER}
 SPRING_DATASOURCE_PASSWORD=${MYSQL_PASSWORD}
 JWT_SECRET=1q2w3e4r
-OPENVIDU_URL=https://openvidu:${OPENVIDU_HTTPS_PORT}/
 APP_BASE_URL=https://${APP_DOMAIN}/
-
-# openvidu - 다른 변수를 포함시키면 제대로 동작하지 않는다(값을 직접 입력해주어야 한다)
-KMS_STUN_IP=11.11.11.11
-KMS_STUN_PORT=8000
-KMS_TURN_URL=myuser:mypassword@11.11.11.11:8000?transport=udp
-DOMAIN_OR_PUBLIC_IP=example.com
-HTTPS_PORT=3333
-
-# backend & openvidu
-OPENVIDU_SECRET=MY_SECRET
+OPENVIDU_URL=https://my-openvidu-server.com/
+OPENVIDU_SECRET=MY_OPNEVIDU_SECRET
 ```
 
 ### 첫 배포시 주의 사항
