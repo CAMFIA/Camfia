@@ -7,7 +7,7 @@ services:
     ports:
       - "32000:3306"
     volumes:
-      - ./mysql/mysql-data:/var/lib/mysql
+      - mysql-data:/var/lib/mysql
       - ./mysql/initdb.d/:/docker-entrypoint-initdb.d/
     env_file: .env
     environment:
@@ -23,7 +23,7 @@ services:
     container_name: redis
     restart: always
     volumes:
-      - ./redis/redis-data:/data
+      - redis-data:/data
     ports:
       - "32001:6379"
     networks:
@@ -85,3 +85,7 @@ services:
 
 networks:
   internal_network:
+
+volumes:
+  mysql-data:
+  redis-data:

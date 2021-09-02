@@ -375,5 +375,4 @@ OPENVIDU_SECRET=MY_OPNEVIDU_SECRET
 <br>
 
 ### 배포시 주의 사항
-redis/redis-data와 mysql/mysql-data는 각각 redis container와 mysql(mariadb) container의 데이터 저장 directory를 mount하고 있으니 각별히 주의해야 합니다.
-
+docker volume인 redis-data와 mysql-data는 각각 redis container와 mysql(mariadb) container의 데이터 저장 volume이므로 각별히 주의해야 합니다.
