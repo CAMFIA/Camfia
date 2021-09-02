@@ -175,10 +175,14 @@
 - openvidu 서버
 - application 서버
 
-### openvidu 서버
+<br>
+
+### openvidu 서버 구축
 [openvidu에서 제공하는 on-premises 방식](https://docs.openvidu.io/en/2.19.0/deployment/ce/on-premises/)을 참고하여 설치합니다.
 
-#### [전제 조건](https://docs.openvidu.io/en/2.19.0/deployment/ce/on-premises/#1-prerequisites)
+<br>
+
+#### **[전제 조건](https://docs.openvidu.io/en/2.19.0/deployment/ce/on-premises/#1-prerequisites)**
 - Docker가 설치되어 있어야 합니다([설치 방법](https://docs.docker.com/engine/install/debian/#install-using-the-repository))
 - `1.24` 이상 버전의 Docker Compose가 설치되어 있어야 합니다([설치 방법](https://docs.docker.com/compose/install/))
 - domain 이름 : https를 사용하기 때문에 domain 이름이 필요합니다
@@ -200,6 +204,7 @@
     - 6379 : redis for openvidu
     - 8888 : KMS
 
+<br>
 
 #### [openvidu 설치](https://docs.openvidu.io/en/2.19.0/deployment/ce/on-premises/#2-deployment)
 먼저 root 권한이 필요합니다.
@@ -208,24 +213,28 @@ sudo su
 ```
 
 <br>
+
 openvidu 설치 위치인 `/opt`로 이동합니다.
 ```sh
 cd /opt
 ```
 
 <br>
+
 다음 명령어를 통해 openvidu를 설치합니다.
 ```sh
 curl https://s3-eu-west-1.amazonaws.com/aws.openvidu.io/install_openvidu_latest.sh | bash
 ```
 
 <br>
-/opt 하위에 openvidu 디렉터리가 생성됩니다. 해당 디렉터리로 이동합니다.
+
+`/opt` 하위에 openvidu 디렉터리가 생성됩니다. 해당 디렉터리로 이동합니다.
 ```sh
 cd /opt/openvidu
 ```
 
 <br>
+
 `.env` 파일에서 다음 항목들을 설정합니다.
 ```sh
 DOMAIN_OR_PUBLIC_IP=my-openvidu-server.com
@@ -249,26 +258,27 @@ LETSENCRYPT_EMAIL=example@email.com
 그리고 80 포트를 꼭 열어주어야 인증서를 받을 수 있습니다.
 
 <br>
-`/opt/openvidu` 위치에서 다음 명령어로 실행할 수 있습니다
+
+`/opt/openvidu` 위치에서 다음 명령어로 실행할 수 있습니다. 그 외의 명렁어는 [공식 reference 페이지](https://docs.openvidu.io/en/2.19.0/deployment/ce/on-premises/#5-administration)에서 확인할 수 있습니다.
 ```sh
 ./openvidu start
 ```
 
 <br>
-(그 외의 명렁어는 [공식 reference 페이지](https://docs.openvidu.io/en/2.19.0/deployment/ce/on-premises/#5-administration)에서 확인할 수 있습니다).
 
+참고로, `CERTIFICATE_TYPE`을 `letsencrypt`로 사용한다면 .env 파일에서 HTTPS_PORT를 변경하더라도 적용되지 않으니 default값인 443을 사용해야 합니다. 변경을 원한다면 [해당 reference 페이지](https://docs.openvidu.io/en/2.19.0/deployment/deploying-openvidu-apps/#in-a-different-port-as-openvidu ) 참고하면 됩니다.
 
 <br>
-참고로, `CERTIFICATE_TYPE`을 `letsencrypt`로 사용한다면 .env 파일에서 HTTPS_PORT를 변경하더라도 적용되지 않으니 default값인 443을 사용해야 합니다.  
-변경을 원한다면 [해당 reference 페이지](https://docs.openvidu.io/en/2.19.0/deployment/deploying-openvidu-apps/#in-a-different-port-as-openvidu ) 참고하면 됩니다.
-
 
 #### openvidu call application 제거 방법
 <https://docs.openvidu.io/en/2.19.0/deployment/deploying-openvidu-apps/#remove-openvidu-call-application>을 참고하였습니다.
 
+<br>
+
 openvidu call application이 설치 시에 같이 설치되어 openvidu 실행시에도 같이 실행됩니다.
 
 <br>
+
 해당 app을 삭제하기 위해서 우선 openvidu를 종료합니다.
 
 ```sh
@@ -277,6 +287,7 @@ cd /opt/openvidu
 ```
 
 <br>
+
 `docker-compose.override.yml`을 삭제합니다.
 
 ```sh
@@ -284,15 +295,19 @@ rm docker-compose.override.yml
 ```
 
 <br>
+
 openvidu를 다시 실행합니다.
 
 ```sh
  ./openvidu start
 ```
 
+<br>
 
 #### openvidu based application 배포 방법
 <https://docs.openvidu.io/en/2.19.0/deployment/deploying-openvidu-apps/#deploy-other-openvidu-based-application>을 참고하였습니다.
+
+<br>
 
 다음 경로에 대해서는 사용하면 안 됩니다.
 - /openvidu/
@@ -300,9 +315,11 @@ openvidu를 다시 실행합니다.
 - /inspector/ (only in OpenVidu Pro)
 
 <br>
+
 dockerized가 되어 있다면 `/opt/openvidu/docker-compose.override.yml` 안에 작성하면 되고, openvidu platform과 생명주기를 같이 합니다.
 
 <br>
+
 다음 요구 사항이 지켜져야 합니다.
 - network_mode를 host로 해야 합니다.
 - Application은 반드시 https가 아닌 http이어야 합니다.
@@ -310,9 +327,9 @@ dockerized가 되어 있다면 `/opt/openvidu/docker-compose.override.yml` 안�
 - openvidu platform URL은 `http://localhost:5443`입니다.
 - openVidu secret은 환경변수 ${OPENVIDU_SECRET}로 활용 가능합니다.
 
+<br>
 
-
-### application 서버
+### application 서버 구축
 우선, Docker와 Docker Compose가 되어 있어야 합니다.
 
 docker buildkit을 위해 `docker/dockerfile:1` 이미지를 미리 pull 합니다.
@@ -320,10 +337,14 @@ docker buildkit을 위해 `docker/dockerfile:1` 이미지를 미리 pull 합니�
 docker pull docker/dockerfile:1
 ```
 
+<br>
+
 프로젝트의 root 위치에서 docker-compose를 실행하면 빌드 및 배포까지 자동으로 이루어집니다.
 ```sh
 DOCKER_BUILDKIT=1 docker-compose up -d
 ```
+
+<br>
 
 단, docker-compose를 실행하기 위해서는 `.env` 파일이 필요합니다. `.env`의 내용은 다음과 같습니다.
 ```env
@@ -346,9 +367,12 @@ OPENVIDU_URL=https://my-openvidu-server.com/
 OPENVIDU_SECRET=MY_OPNEVIDU_SECRET
 ```
 
+<br>
+
 ### 첫 배포시 주의 사항
 첫 배포시에는 [init-letsencrypt.sh](./init-letsencrypt.sh)을 실행시켜 certbot에 의해 SSL/TLS 인증서를 생성하도록 해야 합니다.
 
+<br>
 
 ### 배포시 주의 사항
 redis/redis-data와 mysql/mysql-data는 각각 redis container와 mysql(mariadb) container의 데이터 저장 directory를 mount하고 있으니 각별히 주의해야 합니다.
