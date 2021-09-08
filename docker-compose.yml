@@ -30,11 +30,8 @@ services:
       - internal_network
 
   backend:
+    image: repo.treescale.com/camfia/backend
     container_name: backend
-    build:
-      dockerfile: Dockerfile
-      context: ./backend
-      target: prod
     volumes:
       - ./log:/log
     env_file: .env
@@ -51,12 +48,9 @@ services:
       - internal_network
 
   nginx:
+    image: repo.treescale.com/camfia/nginx
     container_name: nginx
     restart: always
-    build:
-      dockerfile: Dockerfile
-      context: ./frontend
-      target: production-stage
     ports:
       - "80:80"
       - "443:443"

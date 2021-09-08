@@ -1,0 +1,138 @@
+name: Auto deploy
+
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+on:
+  push:
+    branches:
+      - develop
+    # Publish semver tags as releases.
+    tags: [ 'v*.*.*' ]
+  pull_request:
+    branches:
+      - develop
+      - master
+
+env:
+  # Use docker.io for Docker Hub if empty
+  REGISTRY: repo.treescale.com
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set environment variables
+        run: |
+          # Short name for current branch. For PRs, use target branch (base ref)
+          GIT_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
+          echo "GIT_BRANCH=$GIT_BRANCH" >> $GITHUB_ENV
+          echo "BACKEND_IMAGE=${{ env.REGISTRY }}/${{ secrets.REGISTRY_USERNAME }}/backend" >> $GITHUB_ENV
+          echo "NGINX_IMAGE=${{ env.REGISTRY }}/${{ secrets.REGISTRY_USERNAME }}/nginx" >> $GITHUB_ENV
+
+      - name: Set tag environment variables
+        if: contains(env.GIT_BRANCH, 'refs/tags/')
+        run: |
+          git_tag=$(git describe --tags --abbrev=0)
+          echo "GIT_TAG=`echo ${git_tag}`" >> $GITHUB_ENV
+          echo "IMAGE_TAG=`echo ${git_tag:1}`" >> $GITHUB_ENV
+
+      - name: Pull docker/dockerfile for docker buildkit
+        run: docker pull docker/dockerfile:1
+
+      - name: Create frontend/.env.prod for DEV
+        if: env.IMAGE_TAG == null
+        run: |
+          echo "NODE_ENV = \"production\"" >> frontend/.env.prod
+          echo "VUE_APP_BASE_URL = \"${{ secrets.DEV_BASE_URL }}\"" >> frontend/.env.prod
+          cat frontend/.env.prod
+
+      - name: Create frontend/.env.prod for PROD
+        if: env.IMAGE_TAG
+        run: |
+          echo "NODE_ENV = \"production\"" >> frontend/.env.prod
+          echo "VUE_APP_BASE_URL = \"${{ secrets.PROD_BASE_URL }}\"" >> frontend/.env.prod
+          cat frontend/.env.prod
+
+      - name: Build docker images
+        run: |
+          DOCKER_BUILDKIT=1 docker build -t ${{ env.BACKEND_IMAGE }}:latest ./backend
+          DOCKER_BUILDKIT=1 docker build -t ${{ env.NGINX_IMAGE }}:latest ./frontend
+
+      # Login against a Docker registry except on PR
+      # https://github.com/docker/login-action
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name == 'push'
+        uses: docker/login-action@28218f9b04b4f3f62068d7b6ce6ca5b26e35336c
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Publish latest images
+        if: github.event_name == 'push'
+        run: |
+          docker push ${{ env.BACKEND_IMAGE }}:latest
+          docker push ${{ env.NGINX_IMAGE }}:latest
+
+      - name: Tag and publish release version
+        if: github.event_name == 'push' && env.IMAGE_TAG
+        run: |
+          docker image tag ${{ env.BACKEND_IMAGE }}:latest ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}
+          docker image tag ${{ env.NGINX_IMAGE }}:latest   ${{ env.NGINX_IMAGE }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.NGINX_IMAGE }}:${{ env.IMAGE_TAG }}
+
+      - name: Set HOST to DEV host
+        if: github.event_name == 'push' && env.IMAGE_TAG == null
+        run: echo HOST=${{ secrets.DEV_HOST }} >> $GITHUB_ENV
+
+      - name: Set HOST to PROD host
+        if: github.event_name == 'push' && env.IMAGE_TAG
+        run: echo HOST=${{ secrets.PROD_HOST }} >> $GITHUB_ENV
+
+      # https://github.com/appleboy/scp-action
+      - name: Copy file via ssh
+        if: github.event_name == 'push'
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ env.HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "./docker-compose.yml, nginx"
+          target: "camfia"
+
+      #  https://github.com/appleboy/ssh-action
+      - name: Execute remote ssh docker compose commands to run container
+        if: github.event_name == 'push'
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ env.HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/camfia
+            touch registry-password
+            echo ${{ secrets.REGISTRY_PASSWORD }} > registry-password
+            docker login ${{ env.REGISTRY }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin < registry-password
+            rm registry-password
+            docker-compose down
+            docker-compose pull
+            docker-compose up -d
+            del_images=$(docker images --filter "dangling=true" -q --no-trunc)
+            if [ "$del_images" ];then
+              docker rmi $del_images
+            fi
+            docker logout ${{ env.REGISTRY }}
