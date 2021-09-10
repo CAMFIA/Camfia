@@ -1,6 +1,5 @@
 module.exports = {
-  redirectUri: "https://i5a104.p.ssafy.io/oauth2/redirect",
-  apiBaseUri: "https://i5a104.p.ssafy.io",
-  apiClientUri: "https://i5a104.p.ssafy.io",
+  redirectUri: "https://camfia.r-e.kr/oauth2/redirect",
+  apiBaseUri: "https://camfia.r-e.kr",
+  apiClientUri: "https://camfia.r-e.kr",
 };
-  

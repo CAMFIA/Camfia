@@ -1,6 +1,6 @@
 <template>
     <div class="wrap">
-        <div class="ssafia-logo py-4">
+        <div class="camfia-logo py-4">
             <img src="@/assets/image/logo.png" alt="logo image" />
         </div>
         <div class="mt-5 mb-4">
