@@ -1,6 +1,5 @@
 module.exports = {
-  redirectUri: "https://i5a104.p.ssafy.io/oauth2/redirect",
-  apiBaseUri: "https://i5a104.p.ssafy.io",
-  apiClientUri: "https://i5a104.p.ssafy.io",
+  redirectUri: process.env.VUE_APP_BASE_URL + "/oauth2/redirect",
+  apiBaseUri: process.env.VUE_APP_BASE_URL,
+  apiClientUri: process.env.VUE_APP_BASE_URL,
 };
-  
