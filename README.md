@@ -203,6 +203,16 @@ DOCKER_BUILDKIT=1 docker build -t camfia/backend ./backend
 DOCKER_BUILDKIT=1 docker build -t camfia/nginx ./frontend
 ```
 
+## 배포 이미지 관리
+[treescale](https://treescale.com/) private container repository로 다음 2개의 배포 이미지가 관리됩니다.
+- repo.treescale.com/camfia/backend
+- repo.treescale.com/camfia/nginx
+
+이미지를 push 또는 pull하기 위해서는 docker login이 필요합니다.
+```sh
+docker login repo.treescale.com -u camfia
+```
+
 <br>
 
 ## 🌐 배포 방법
@@ -365,7 +375,7 @@ dockerized가 되어 있다면 `/opt/openvidu/docker-compose.override.yml` 안�
 <br>
 
 ### application 서버 구축
-우선, Docker와 Docker Compose가 되어 있어야 합니다.
+우선, Docker와 Docker Compose가 설치되어 있어야 합니다.
 
 docker buildkit을 위해 `docker/dockerfile:1` 이미지를 미리 pull 합니다.
 ```sh
@@ -374,17 +384,25 @@ docker pull docker/dockerfile:1
 
 <br>
 
-프로젝트의 root 위치에서 docker-compose를 실행하면 빌드 및 배포까지 자동으로 이루어집니다.
+`~/camfia` directory를 생성 및 이동합니다.
 ```sh
-docker-compose up -d
+mkdir ~/camfia
+cd ~/camfia
 ```
 
 <br>
 
-단, docker-compose를 실행하기 위해서는 `.env` 파일이 필요합니다. `.env`의 내용은 다음과 같습니다.
+project의 다음 파일을 복사합니다.
+- [docker-compose.yml](./docker-compose.yml)
+- [init-letsencrypt.sh](./init-letsencrypt.sh)
+- [nginx/default.conf.template](nginx/default.conf.template)
+
+<br>
+
+이때, docker compose와 certbot을 실행하기 위해서는 `.env` 파일이 필요합니다. `.env`의 내용은 다음과 같습니다.
 ```env
 APP_DOMAIN=my-app.com
-LETSENCRYPT_EMAIL=example@email.com # 반드시 유효한 이메일 주소이어야 한다
+LETSENCRYPT_EMAIL=example@email.com
 
 # mysql
 MYSQL_USER=myuser
@@ -404,10 +422,39 @@ OPENVIDU_SECRET=MY_OPNEVIDU_SECRET
 
 <br>
 
-### 첫 배포시 주의 사항
-첫 배포시에는 [init-letsencrypt.sh](./init-letsencrypt.sh)을 실행시켜 certbot에 의해 SSL/TLS 인증서를 생성하도록 해야 합니다.
+[init-letsencrypt.sh](./init-letsencrypt.sh)을 실행시켜 certbot에 의해 SSL/TLS 인증서를 생성하도록 해야 합니다.
+```sh
+sudo ./init-letsencrypt.sh
+```
+
+<br>
+
+docker compose를 통해 application을 실행합니다.
+```sh
+docker-compose up -d
+```
 
 <br>
 
 ### 배포시 주의 사항
 docker volume인 redis-data와 mysql-data는 각각 redis container와 mysql(mariadb) container의 데이터 저장 volume이므로 각별히 주의해야 합니다.
+
+<br>
+
+## github actions를 통한 자동 배포
+[auto-deploy.yml](.github/workflows/auto-deploy.yml)에 의해 자동으로 배포가 이루어 집니다.
+
+### github secrets 설정
+`Settings > Secrets`에서 다음 항목에 대한 secrets 등록이 필요합니다.
+```sh
+DEV_BASE_URL : https://my-app-dev.com
+DEV_HOST : my-app-dev.com
+JIRA_BASE_URL : https://my-app.atlassian.net/
+PROD_BASE_URL : https://my-app.com
+PROD_HOST : my-app.com
+REGISTRY_PASSWORD : registrypass
+REGISTRY_USERNAME : registryuser
+SSH_PORT : 22
+SSH_PRIVATE_KEY : -----BEGIN OPENSSH PRIVATE KEY----- ~~
+SSH_USERNAME : sshuser
+```
