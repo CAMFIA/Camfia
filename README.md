@@ -181,6 +181,30 @@
 
 <br>
 
+## 이미지 빌드 방법
+production 배포 목적의 nginx 이미지 빌드를 하기 위해서는 `frontend/.env.prod` 파일이 필요합니다. `frontend/.env.prod`의 내용은 다음과 같습니다.
+```env
+NODE_ENV = "production"
+VUE_APP_BASE_URL = "https://my-app.com"
+```
+
+<br>
+
+docker buildkit을 위해 `docker/dockerfile:1` 이미지를 미리 pull 합니다.
+```sh
+docker pull docker/dockerfile:1
+```
+
+<br>
+
+다음 명령어를 통해 이미지를 빌드합니다.
+```sh
+DOCKER_BUILDKIT=1 docker build -t camfia/backend ./backend
+DOCKER_BUILDKIT=1 docker build -t camfia/nginx ./frontend
+```
+
+<br>
+
 ## 🌐 배포 방법
 먼저, 서버가 2대 준비되어 있어야 합니다.
 - openvidu 서버
@@ -352,7 +376,7 @@ docker pull docker/dockerfile:1
 
 프로젝트의 root 위치에서 docker-compose를 실행하면 빌드 및 배포까지 자동으로 이루어집니다.
 ```sh
-DOCKER_BUILDKIT=1 docker-compose up -d
+docker-compose up -d
 ```
 
 <br>
