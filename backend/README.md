@@ -107,8 +107,15 @@ client-secret 적용 방법에는 2가지가 있다.
 ### 환경 구축
 
 - DB
-local에서는 mysql 또는 mariadb를 사용하면 되고, schema는 `mafia` 이름으로 생성해주면 된다.
+  - MariaDB를 설치한 후, 다음 query를 수행한다.
 
+	```sql
+	CREATE DATABASE `mafia`;
+	CREATE USER 'a104'@'%' IDENTIFIED BY 'a1041234';
+	GRANT ALL PRIVILEGES ON `mafia`.* TO 'a104'@'%';
+	```
+
+  - 또는 [docker-compose-for-front.yml](../docker-compose-for-front.yml)을 참고하여 docker 이미지를 실행한다.
 
 - openvidu
 [run-environment-for-backend.sh](../script/run-environment-for-backend.sh)을 통해 openvidu docker container를 실행하면 된다.
