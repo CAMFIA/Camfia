@@ -168,6 +168,10 @@ import "./Game.css";
 
 axios.defaults.headers.post["Content-Type"] = "application/json";
 
+const audio = new Audio(
+    "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
+);
+
 export default {
     name: "Game",
     components: {
@@ -232,10 +236,29 @@ export default {
             observerColor: "#008080",
             victimColor: "#FFDEAD",
 
-            dayConfirmMsg: `<br/><span style='font-size: 19px; color:skyblue'>모든 플레이어가 투표확정을 누르면 다음 페이즈로 넘어갑니다.</span>`,
-            eliminationConfirmMsg: `<br/><span style='font-size: 19px; color:skyblue'>최종 변론자를 클릭하지 않고 확정버튼을 누를 시 SAVE로 간주됩니다.</span>`,
-            nightConfirmMsg: `<br/><span style='font-size: 19px; color:skyblue'>마피아, 경찰, 의사 모두 투표확정을 누르면 낮으로 넘어갑니다.</span>`,
+            roleColors: null,
+  
+            roleNames: new Map([
+              ["MAFIA", "마피아"],
+              ["DOCTOR", "의사"],
+              ["POLICE", "경찰"],
+              ["CIVILIAN", "시민"],
+              ["OBSERVER", "관전자"],
+            ]),
+
+
+            dayConfirmMsg: ` <br> ${styledMessage("모든 플레이어가 투표 확정을 누르면 바로 다음 단계로 넘어갑니다.", "skyblue", 19)}`,
+            eliminationConfirmMsg: ` <br> ${styledMessage("제거 대상자를 선택하지 않고 확정 버튼을 누를 시 SAVE로 간주됩니다.", "skyblue", 19)}`,
+            nightConfirmMsg: ` <br> ${styledMessage("투표가 가능한 플레이어 모두 투표 확정을 누르면 바로 낮으로 넘어갑니다.", "skyblue", 19)}`,
         });
+
+        state.roleColors = new Map([
+            ["MAFIA", state.mafiaColor],
+            ["DOCTOR", state.doctorColor],
+            ["POLICE", state.policeColor],
+            ["CIVILIAN", state.civilColor],
+            ["OBSERVER", state.observerColor],
+        ]);
 
         // 화상 채팅 관련
         // 세션 나가기
@@ -399,7 +422,7 @@ export default {
                         resolution: "311x170", // The resolution of your video
                         frameRate: 30, // The frame rate of your video
                         insertMode: "APPEND", // How the video is inserted in the target element 'video-container'
-                        mirror: false, // Whether to mirror your local video or not
+                        mirror: true, // Whether to mirror your local video or not
                     });
 
                     state.publisher = publisher;
@@ -431,13 +454,11 @@ export default {
                     );
                 });
         };
+
         function onConnected() {
-            state.message = `최소 <span style='font-size:25px;'>4인</span> 이상부터 플레이가 가능합니다.`;
+            state.message = `${styledMessage("4인 이상", "Chartreuse", 25)}부터 플레이가 가능합니다.`;
             // 개인 채널 구독
-            state.stompClient.subscribe(
-                `/sub/${state.mySessionId}/${state.playerId}`,
-                onPersonalMessageReceived
-            );
+            state.stompClient.subscribe(`/sub/${state.mySessionId}/${state.playerId}`, onPersonalMessageReceived);
             // 방 채널 구독
             state.stompClient.subscribe(`/sub/${state.mySessionId}`, onMessageReceived);
 
@@ -484,11 +505,7 @@ export default {
                 const Message = {
                     phase: state.gameStatus.phase,
                 };
-                state.stompClient.send(
-                    `/pub/${state.mySessionId}/confirm`,
-                    JSON.stringify(Message),
-                    {}
-                );
+                state.stompClient.send(`/pub/${state.mySessionId}/confirm`, JSON.stringify(Message), {});
             }
         }
 
@@ -644,318 +661,35 @@ export default {
             } else if (message.type === "PHASE_CHANGED") {
                 switch (message.gameStatus.phase) {
                     case "START": {
-                        const audio = new Audio(
-                            "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
-                        );
-                        audio.play();
-                        state.gameStatus = message.gameStatus;
-                        state.newSubscriberOn = true;
-                        infoUpdater("alive", message);
-                        let localSubscribers = [];
-                        let localPlayersGameInfo = [];
-                        for (let i = 0; i < state.subscribers.length; i++) {
-                            let tmpSubscriber = {
-                                playerId: state.subscribers[i].playerId,
-                                nickname: state.subscribers[i].nickname,
-                            };
-                            let tmpPlayerGameInfo = {
-                                playerId: state.playersGameInfo[i].playerId,
-                                nickname: state.playersGameInfo[i].nickname,
-                                alive: true,
-                                suspicious: false,
-                                voters: [],
-                                color: state.playersGameInfo[i].color,
-                                isMafia: state.playersGameInfo[i].isMafia,
-                                isHost: false,
-                                isTalking: false,
-                                role: null,
-                                confirm: false,
-                            };
-                            localSubscribers.push(tmpSubscriber);
-                            localPlayersGameInfo.push(tmpPlayerGameInfo);
-                        }
-                        console.log(localSubscribers);
-                        console.log(localPlayersGameInfo);
-                        localStorage.setItem("localSubscribers", JSON.stringify(localSubscribers));
-                        localStorage.setItem(
-                            "localPlayersGameInfo",
-                            JSON.stringify(localPlayersGameInfo)
-                        );
-                        store.dispatch("ingame/setPhase", state.gameStatus.phase);
-                        if (state.role === "OBSERVER") {
-                            for (let i = 0; i < state.subscribers.length; i++) {
-                                if (!state.removeList.includes(i)) {
-                                    state.subscribers[i].subscribeToAudio(true);
-                                    state.subscribers[i].subscribeToVideo(true);
-                                }
-                            }
-                        }
+                        doStartPhase(message);
                         break;
                     }
                     case "DAY_DISCUSSION": {
-                        const audio = new Audio(
-                            "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
-                        );
-                        audio.play();
-                        state.submessage = "";
-                        if (state.role !== "OBSERVER") {
-                            state.message =
-                                `<span style='font-size: 25px; color:${state.dayColor}'>낮 투표시간</span>이 되었습니다. <br/> 각자 의심되는 사람을 지목해 주세요. <br/> 최다 득표를 한 사람들은 최종투표에 나가게 됩니다.` +
-                                state.dayConfirmMsg;
-                        } else {
-                            state.message =
-                                `당신은 <span style='font-size: 25px; color:${state.observerColor}'>관전자</span>입니다. 투표하실 수 없습니다. <br/> 낮 투표시간</span>이 되었습니다. <br/> 각자 의심되는 사람을 지목해 주세요. <br/> 최다 득표를 한 사람들은 최종투표에 나가게 됩니다.` +
-                                state.dayConfirmMsg;
-                        }
-                        state.gameStatus = message.gameStatus;
-                        state.newSubscriberOn = true;
-                        infoUpdater("alive", message);
-                        infoUpdater("confirm", false);
-                        store.dispatch("ingame/setPhase", state.gameStatus.phase);
-                        if (state.role === "OBSERVER") {
-                            for (let i = 0; i < state.subscribers.length; i++) {
-                                if (!state.removeList.includes(i)) {
-                                    state.subscribers[i].subscribeToAudio(true);
-                                    state.subscribers[i].subscribeToVideo(true);
-                                }
-                            }
-                        }
+                        doDayDiscussionPhase(message);
                         break;
                     }
                     case "DAY_ELIMINATION": {
-                        const audio = new Audio(
-                            "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
-                        );
-                        audio.play();
-                        state.vote = null;
-                        if (state.role !== "OBSERVER") {
-                            state.message =
-                                `<span style='font-size: 25px; color:pink'>최종투표시간</span>이 되었습니다. <br/> 최종투표 후보자들 중에 제거할 사람을 클릭해 <span style='color:crimson;'>KILL</span>할 수 있습니다. <br/> 최다득표자는 제거됩니다.` +
-                                state.eliminationConfirmMsg;
-                        } else {
-                            state.message =
-                                `당신은 <span style='font-size: 25px; color:${state.observerColor}'>관전자</span>입니다. 투표하실 수 없습니다. <br/> <span style='font-size: 25px; color:pink'>최종투표시간</span>이 되었습니다. <br/> 최종투표 후보자들 중에 제거할 사람을 클릭해 <span style='color:crimson;'>KILL</span>할 수 있습니다. <br/> 최다득표자는 제거됩니다.` +
-                                state.eliminationConfirmMsg;
-                        }
-                        state.gameStatus = message.gameStatus;
-                        state.newSubscriberOn = true;
-                        infoUpdater("suspicious", message);
-                        infoUpdater("voters", null);
-                        infoUpdater("confirm", false);
-                        state.isConfirm = false;
-                        store.dispatch("ingame/setPhase", state.gameStatus.phase);
+                        doDayEliminationPhase(message);
                         break;
                     }
                     case "DAY_TO_NIGHT": {
-                        const audio = new Audio(
-                            "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
-                        );
-                        audio.play();
-                        state.vote = null;
-                        if (state.gameStatus.phase === "DAY_DISCUSSION") {
-                            state.message =
-                                "최다 득표자가 너무 많거나 또는 무효투표자가 너무 많은 관계로 <br/>최종 투표를 스킵하고 밤으로 넘어갑니다.";
-                        } else {
-                            if (message.gameStatus.victim) {
-                                let victimNickname = "nickname";
-                                if (message.gameStatus.victim === state.playerMe.playerId) {
-                                    victimNickname = state.playerMe.nickname;
-                                } else {
-                                    for (let i = 0; i < state.playersGameInfo.length; i++) {
-                                        if (
-                                            state.playersGameInfo[i].playerId ===
-                                            message.gameStatus.victim
-                                        ) {
-                                            victimNickname = state.playersGameInfo[i].nickname;
-                                            break;
-                                        }
-                                    }
-                                    const victimJob = message.gameStatus.victimIsMafia;
-                                    if (victimJob) {
-                                        state.message = `낮의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 <span style="font-size:25px; color:${state.mafiaColor}">마피아</span> 입니다. 곧 밤으로 넘어갑니다.`;
-                                    } else {
-                                        state.message = `낮의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 마피아가 <span style="font-size:25px; color:${state.mafiaColor}">아닙니다</span>. 곧 밤으로 넘어갑니다.`;
-                                    }
-
-                                    // 죽는 애니메이션
-                                }
-                            } else {
-                                state.message =
-                                    "최다 득표자가 너무 많거나 또는 무효투표자가 너무 많은 관계로,<br/>최종 투표를 스킵하고 밤으로 넘어갑니다.";
-                            }
-                        }
-                        state.gameStatus = message.gameStatus;
-                        state.newSubscriberOn = true;
-                        infoUpdater("alive", message);
-                        infoUpdater("suspicious", false);
-                        infoUpdater("voters", null);
-                        infoUpdater("confirm", false);
-                        state.isConfirm = false;
-                        store.dispatch("ingame/setPhase", state.gameStatus.phase);
-                        if (state.role === "OBSERVER") {
-                            for (let i = 0; i < state.subscribers.length; i++) {
-                                if (!state.removeList.includes(i)) {
-                                    state.subscribers[i].subscribeToAudio(true);
-                                    state.subscribers[i].subscribeToVideo(true);
-                                }
-                            }
-                        }
+                        doDayToNightPhase(message);
                         break;
                     }
                     case "NIGHT_VOTE": {
-                        const audio = new Audio(
-                            "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
-                        );
-                        audio.play();
-                        if (state.role === "MAFIA") {
-                            state.message =
-                                `<span style="font-size: 25px; color: ${state.nightColor};">밤</span>이 되었습니다. <span style="font-size: 25px; color: ${state.mafiaColor}">마피아</span>는 시민 중 제거할 사람을 투표하여 주시기 바랍니다. <br> 동료와 상의하여 한 명만 투표하실 수 있습니다.` +
-                                state.nightConfirmMsg;
-                        } else if (state.role === "DOCTOR") {
-                            state.message =
-                                `<span style="font-size: 25px; color: ${state.nightColor};">밤</span>이 되었습니다. <span style="font-size: 25px; color:${state.doctorColor}">의사</span>는 시민 중 제거당할 것 같은 사람에게 투표하여 주시기 바랍니다.` +
-                                state.nightConfirmMsg;
-                        } else if (state.role === "POLICE") {
-                            state.message =
-                                `<span style="font-size: 25px; color: ${state.nightColor};">밤</span>이 되었습니다. <span style="font-size: 25px; color: ${state.policeColor}">경찰</span>은 의심되는 사람을 지목하여 그 사람의 직업을 확인해보시기 바랍니다.` +
-                                state.nightConfirmMsg;
-                        } else if (state.role === "CIVILIAN") {
-                            state.message =
-                                `<span style="font-size: 25px; color: ${state.nightColor};">밤</span>이 되었습니다. 마이크와 비디오가 중단됩니다.` +
-                                state.nightConfirmMsg;
-                        } else {
-                            state.message =
-                                `당신은 <span style="font-size: 25px; color: ${state.observerColor}">관전자</span>입니다. 투표하실 수 없습니다.<br/> <span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. 마이크와 비디오가 중단됩니다.` +
-                                state.nightConfirmMsg;
-                        }
-                        if (state.role === "MAFIA") {
-                            for (let i = 0; i < state.subscribers.length; i++) {
-                                if (
-                                    state.playersGameInfo[i].isMafia !== true &&
-                                    !state.removeList.includes(i)
-                                ) {
-                                    state.subscribers[i].subscribeToAudio(false);
-                                    state.subscribers[i].subscribeToVideo(false);
-                                }
-                            }
-                        } else if (state.role === "OBSERVER") {
-                            for (let i = 0; i < state.subscribers.length; i++) {
-                                if (!state.removeList.includes(i)) {
-                                    state.subscribers[i].subscribeToAudio(true);
-                                    state.subscribers[i].subscribeToVideo(true);
-                                }
-                            }
-                        } else {
-                            for (let i = 0; i < state.subscribers.length; i++) {
-                                if (!state.removeList.includes(i)) {
-                                    state.subscribers[i].subscribeToVideo(false);
-                                    state.subscribers[i].subscribeToAudio(false);
-                                }
-                            }
-                        }
-                        state.gameStatus = message.gameStatus;
-                        store.dispatch("ingame/setPhase", state.gameStatus.phase);
+                        doNightVotePhase(message);
                         break;
                     }
                     case "NIGHT_TO_DAY": {
-                        const audio = new Audio(
-                            "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
-                        );
-                        audio.play();
-                        state.vote = null;
-                        if (message.gameStatus.victim) {
-                            let victimNickname = "";
-                            if (message.gameStatus.victim === state.playerMe.playerId) {
-                                victimNickname = state.playerMe.nickname;
-                            } else {
-                                for (let i = 0; i < state.playersGameInfo.length; i++) {
-                                    if (
-                                        state.playersGameInfo[i].playerId ===
-                                        message.gameStatus.victim
-                                    ) {
-                                        victimNickname = state.playersGameInfo[i].nickname;
-                                        break;
-                                    }
-                                }
-                            }
-                            let victimJob = message.gameStatus.victimIsMafia;
-                            if (victimJob) {
-                                state.message = `밤의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 <span style="font-size:25px; color:${state.mafiaColor}">마피아</span> 입니다. 곧 낮으로 넘어갑니다.`;
-                            } else {
-                                state.message = `밤의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 마피아가 <span style="font-size:25px; color:${state.mafiaColor}">아닙니다.</span> 곧 낮으로 넘어갑니다.`;
-                            }
-                        } else {
-                            state.message = "밤의 투표 결과, 아무도 죽지 않았습니다.";
-                        }
-                        state.gameStatus = message.gameStatus;
-                        state.newSubscriberOn = true;
-                        infoUpdater("alive", message);
-                        infoUpdater("voters", null);
-                        infoUpdater("confirm", false);
-                        state.isConfirm = false;
-                        for (let i = 0; i < state.subscribers.length; i++) {
-                            if (!state.removeList.includes(i)) {
-                                state.subscribers[i].subscribeToAudio(true);
-                                state.subscribers[i].subscribeToVideo(true);
-                            }
-                        }
-                        store.dispatch("ingame/setPhase", state.gameStatus.phase);
+                        doNightToDayPhase(message);
                         break;
                     }
                     case "END": {
-                        state.gameStatus = message.gameStatus;
-                        const audio = new Audio(
-                            "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
-                        );
-                        audio.play();
-                        // 초기화
-                        state.role = undefined;
-                        if (state.jobClient) {
-                            state.jobClient.unsubscribe();
-                        }
-                        state.jobClient = undefined;
-                        state.mafias = undefined;
-                        state.submessage = "";
-                        state.publisher.publishAudio(true);
-                        state.publisher.publishVideo(true);
-                        for (let i = 0; i < state.subscribers.length; i++) {
-                            if (!state.removeList.includes(i)) {
-                                state.subscribers[i].subscribeToAudio(true);
-                                state.subscribers[i].subscribeToVideo(true);
-                            }
-                        }
-                        infoUpdater("alive", true);
-                        infoUpdater("suspicious", null);
-                        infoUpdater("voters", null);
-                        infoUpdater("isMafia", null);
-                        infoUpdater("confirm", false);
-                        state.vote = null;
-                        state.isConfirm = false;
-                        if (message.gameStatus.turnOver === true) {
-                            state.message = `게임이 종료되었습니다 <br> 15턴이 지나 자동으로 <span style="font-size: 25px; color:${state.civilColor}">시민측 진영</span>이 승리하였습니다. `;
-                        } else {
-                            let victims = message.gameStatus.victims.join(",");
-                            if (message.gameStatus.winner === "MAFIA") {
-                                state.message = `게임이 종료되었습니다. <br> <span style="font-size:25px; color:${state.victimColor}">${victims}</span>가 사망하며 시민 수가 마피아 수 이하가 되었기 때문에 <span style="font-size: 25px; color:${state.mafiaColor}">마피아측 진영</span>의 승리입니다.`;
-                            } else {
-                                state.message = `게임이 종료되었습니다. <br> <span style="font-size:25px; color:${state.victimColor}">${victims}</span>가 사망하며 마피아를 모두 제거하였기 때문에 <span style="font-size: 25px; color:${state.civilColor}">시민측 진영</span>이 승리하였습니다.`;
-                            }
-                        }
+                        doEndPhase(message);
                         break;
                     }
                     case "READY": {
-                        state.message = `최소 <span style='font-size:25px;'>4인</span> 이상부터 플레이가 가능합니다.`;
-                        for (let j = state.subscribers.length - 1; j >= 0; j--) {
-                            if (state.removeList.includes(j)) {
-                                state.subscribers.splice(j, 1);
-                                state.playersGameInfo.splice(j, 1);
-                                state.playerNum--;
-                            }
-                        }
-                        state.removeList = [];
-                        state.gameStatus = message.gameStatus;
-                        infoUpdater("isHost", message);
-                        store.dispatch("ingame/setPhase", state.gameStatus.phase);
+                        doReady(message);
                         break;
                     }
                 }
@@ -984,9 +718,14 @@ export default {
             if (message.type === "ROLE") {
                 state.role = message.role;
                 state.mafias = message.mafias;
+
+                let roleMessage = `${styledMessage(state.roleNames.get(state.role), state.roleColors.get(state.role), 25)}`;
                 if (state.role === "MAFIA") {
+                    state.message = `게임이 시작되었습니다. <br> 
+                                  당신은 ${roleMessage}입니다. <br> 
+                                  시민의 수를 마피아 이하로 만들면 당신의 승리입니다. <br> `;
                     if (state.mafias.length === 1) {
-                        state.message = `게임이 시작되었습니다. <br/> 당신은 <span style='font-size: 25px; color:${state.mafiaColor}'>마피아</span>입니다. <br/>시민의 수를 마피아 이하로 만들면 당신의 승리입니다. <br/>밤마다 마피아 동료들과 상의해 시민을 한명씩 제거해 나가세요.  \n 마피아는 당신 한명 입니다`;
+                        state.message += `마피아는 당신 한 명입니다.`;
                     } else {
                         let mafiaNicknames = [];
                         for (let i = 0; i < state.playersGameInfo.length; i++) {
@@ -995,16 +734,26 @@ export default {
                             }
                         }
                         const mafiaNicknameString = mafiaNicknames.join(" , ");
-                        state.message = `게임이 시작되었습니다. <br/>당신은 <span style='font-size: 25px; color:${state.mafiaColor}'>마피아</span>입니다. <br/>시민의 수를 마피아 이하로 만들면 당신의 승리입니다. <br/>밤마다 마피아 동료들과 상의해 시민을 한명씩 제거해 나가세요. <br/>당신의 마피아 동료는 <span style="color:${state.victimColor};">${mafiaNicknameString}</span>입니다`;
+                        state.message += `당신의 마피아 동료는 ${styledMessage(mafiaNicknameString, state.victimColor, null)}입니다. <br> 
+                                        밤마다 동료와 상의하여 시민을 제거해 나가세요.`;
                     }
                 } else if (state.role === "POLICE") {
-                    state.message = `게임이 시작되었습니다. <br/>당신은 <span style='font-size: 25px; color:${state.policeColor}'>경찰</span>입니다. <br/>시민을 도와 마피아를 모두 제거하면 당신의 승리입니다. <br/>밤마다 의심되는 사람을 지목하면 해당 플레이어의 직업을 알 수 있습니다.`;
+                  state.message = `게임이 시작되었습니다. <br> 
+                              당신은 ${roleMessage}입니다. <br> 
+                              다른 시민들과 함께 마피아를 모두 제거하면 당신의 승리입니다. <br> 
+                              밤마다 플레이어를 선택하면 해당 플레이어의 직업을 알 수 있습니다.`;
                 } else if (state.role === "DOCTOR") {
-                    state.message = `게임이 시작되었습니다.<br/>당신은 <span style='font-size: 25px; color:${state.doctorColor}'>의사</span>입니다. <br/>시민을 도와 마피아를 모두 제거하면 당신의 승리입니다. <br/>밤마다 살리고 싶은 플레이어를 선택할 수 있습니다.`;
+                  state.message = `게임이 시작되었습니다. <br> 
+                                당신은 ${roleMessage}입니다. <br> 
+                                다른 시민들과 함께 마피아를 모두 제거하면 당신의 승리입니다. <br> 
+                                밤마다 살릴 플레이어를 선택할 수 있습니다.`;
                 } else if (state.role === "CIVILIAN") {
-                    state.message = `게임이 시작되었습니다. <br/>당신은 <span style='font-size: 25px; color:${state.civilColor}'>시민</span>입니다. <br/>다른 시민들과 함께 마피아를 모두 제거하면 당신의 승리입니다.`;
+                    state.message = `게임이 시작되었습니다. <br> 
+                                  당신은 ${roleMessage}입니다. <br> 
+                                  다른 시민들과 함께 마피아를 모두 제거하면 당신의 승리입니다.`;
                 } else {
-                    state.message = `당신은 <span style="font-size: 25px; color:${state.observerColor}">관전자</span>입니다. <br/>게임에 개입할 수는 없지만, 일어나고 있는 일들에 대한 모든 정보를 볼 수 있습니다.`;
+                    state.message = `당신은 ${roleMessage}입니다. <br> 
+                                    게임에 개입할 수는 없지만, 일어나고 있는 일들에 대한 모든 정보를 확인할 수 있습니다.`;
                     state.publisher.publishAudio(false);
                     state.publisher.publishVideo(false);
                     for (let i = 0; i < state.subscribers.length; i++) {
@@ -1014,6 +763,7 @@ export default {
                         }
                     }
                 }
+
                 if (!state.mafias) {
                     infoUpdater("isMafia", null);
                 } else {
@@ -1058,7 +808,8 @@ export default {
                 state.role = message.role;
                 state.mafias = message.mafias;
                 if (state.role === "OBSERVER") {
-                    state.message = `당신은 <span style="font-size: 25px; color:${state.observerColor}">관전자</span>입니다. <br/>게임에 개입할 수는 없지만, 일어나고 있는 일들에 대한 모든 정보를 볼 수 있습니다.`;
+                    state.message = `당신은 ${styledMessage("관전자", state.observerColor, 25)}입니다. <br> 
+                                    게임에 개입할 수는 없지만, 일어나고 있는 일들에 대한 모든 정보를 확인할 수 있습니다.`;
                     state.publisher.publishAudio(false);
                     state.publisher.publishVideo(false);
                     for (let i = 0; i < state.subscribers.length; i++) {
@@ -1068,7 +819,7 @@ export default {
                         }
                     }
                 }
-                if (state.mafias) {
+                if (!state.mafias) {
                     infoUpdater("isMafia", null);
                 } else {
                     for (let i = 0; i < state.playersGameInfo.length; i++) {
@@ -1088,9 +839,6 @@ export default {
                 }
                 switch (message.gameStatus.phase) {
                     case "START": {
-                        const audio = new Audio(
-                            "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
-                        );
                         audio.play();
                         state.gameStatus = message.gameStatus;
                         state.newSubscriberOn = true;
@@ -1099,212 +847,324 @@ export default {
                         break;
                     }
                     case "DAY_DISCUSSION": {
-                        const audio = new Audio(
-                            "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
-                        );
-                        audio.play();
-                        state.submessage = "";
-                        if (state.role !== "OBSERVER") {
-                            state.message =
-                                `<span style='font-size: 25px; color:${state.dayColor}'>낮 투표시간</span>이 되었습니다. <br/> 각자 의심되는 사람을 지목해 주세요. <br/> 최다 득표를 한 사람들은 최종투표에 나가게 됩니다.` +
-                                state.dayConfirmMsg;
-                        } else {
-                            state.message =
-                                `당신은 <span style='font-size: 25px; color:${state.observerColor}'>관전자</span>입니다. 투표하실 수 없습니다. <br/> 낮 투표시간</span>이 되었습니다. <br/> 각자 의심되는 사람을 지목해 주세요. <br/> 최다 득표를 한 사람들은 최종투표에 나가게 됩니다.` +
-                                state.dayConfirmMsg;
-                        }
-                        state.gameStatus = message.gameStatus;
-                        state.newSubscriberOn = true;
-                        infoUpdater("alive", message);
-                        infoUpdater("confirm", false);
-                        store.dispatch("ingame/setPhase", state.gameStatus.phase);
+                        doDayDiscussionPhase(message);
                         break;
                     }
                     case "DAY_ELIMINATION": {
-                        const audio = new Audio(
-                            "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
-                        );
-                        audio.play();
-                        state.vote = null;
-                        if (state.role !== "OBSERVER") {
-                            state.message =
-                                `<span style='font-size: 25px; color:pink'>최종투표시간</span>이 되었습니다. <br/> 최종투표 후보자들 중에 제거할 사람을 클릭해 <span style='color:crimson;'>KILL</span>할 수 있습니다. <br/> 최다득표자는 제거됩니다.` +
-                                state.eliminationConfirmMsg;
-                        } else {
-                            state.message =
-                                `당신은 <span style='font-size: 25px; color:${state.observerColor}'>관전자</span>입니다. 투표하실 수 없습니다. <br/> <span style='font-size: 25px; color:pink'>최종투표시간</span>이 되었습니다. <br/> 최종투표 후보자들 중에 제거할 사람을 클릭해 <span style='color:crimson;'>KILL</span>할 수 있습니다. <br/> 최다득표자는 제거됩니다.` +
-                                state.eliminationConfirmMsg;
-                        }
-                        state.gameStatus = message.gameStatus;
-                        infoUpdater("suspicious", message);
-                        infoUpdater("voters", null);
-                        infoUpdater("confirm", false);
-                        state.isConfirm = false;
-                        store.dispatch("ingame/setPhase", state.gameStatus.phase);
+                        doDayEliminationPhase(message);
                         break;
                     }
                     case "DAY_TO_NIGHT": {
-                        const audio = new Audio(
-                            "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
-                        );
-                        audio.play();
-                        state.vote = null;
-                        if (state.gameStatus === "DAY_DISCUSSION") {
-                            state.message =
-                                "최다 득표자가 너무 많거나 또는 무효투표자가 너무 많은 관계로,  최종 투표를 스킵하고 밤으로 넘어갑니다.";
-                        } else {
-                            if (message.gameStatus.victime) {
-                                let victimNickname = "";
-                                if (message.gameStatus.victim === state.playerMe.playerId) {
-                                    victimNickname = state.playerMe.nickname;
-                                } else {
-                                    for (let i = 0; i < state.playersGameInfo.length; i++) {
-                                        if (
-                                            state.playersGameInfo[i].playerId ===
-                                            message.gameStatus.victim
-                                        ) {
-                                            victimNickname = state.playersGameInfo[i].nickname;
-                                            break;
-                                        }
-                                    }
-                                    let victimJob = message.gameStatus.victimIsMafia;
-                                    if (victimJob) {
-                                        state.message = `낮의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 <span style="font-size:25px; color:${state.mafiaColor}">마피아</span> 입니다. 곧 밤으로 넘어갑니다.`;
-                                    } else {
-                                        state.message = `낮의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 마피아가 <span style="font-size:25px; color:${state.mafiaColor}">아닙니다</span>.  곧 밤으로 넘어갑니다.`;
-                                    }
-                                }
-                            } else {
-                                state.message =
-                                    "최다 득표자가 너무 많거나 또는 무효투표자가 너무 많은 관계로,<br/>최종 투표를 스킵하고 밤으로 넘어갑니다.";
-                            }
-                        }
-                        state.gameStatus = message.gameStatus;
-                        state.newSubscriberOn = true;
-                        infoUpdater("alive", message);
-                        infoUpdater("suspicious", null);
-                        infoUpdater("voters", null);
-                        infoUpdater("confirm", false);
-                        state.isConfirm = false;
-                        store.dispatch("ingame/setPhase", state.gameStatus.phase);
+                        doDayToNightPhase(message);
                         break;
                     }
                     case "NIGHT_VOTE": {
-                        const audio = new Audio(
-                            "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
-                        );
-                        audio.play();
-                        if (state.role === "MAFIA") {
-                            state.message =
-                                `<span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. <span style="font-size: 25px; color: ${state.mafiaColor}">마피아</span>는 시민 중 제거할 사람을 투표하여 주시기 바랍니다. <br> 동료와 상의하여 한 명만 투표하실 수 있습니다.` +
-                                state.nightConfirmMsg;
-                        } else if (state.role === "DOCTOR") {
-                            state.message =
-                                `<span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. <span style="font-size: 25px; color:${state.doctorColor}">의사</span>는 시민 중 제거당할 것 같은 사람에게 투표하여 주시기 바랍니다.` +
-                                state.nightConfirmMsg;
-                        } else if (state.role === "POLICE") {
-                            state.message = state.message =
-                                `<span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. <span style="font-size: 25px; color: ${state.policeColor}">경찰</span>은 의심되는 사람을 지목하여 그 사람의 직업을 확인해보시기 바랍니다.` +
-                                state.nightConfirmMsg;
-                        } else if (state.role === "CIVILIAN") {
-                            state.message =
-                                `<span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. 마이크와 비디오가 중단됩니다.` +
-                                state.nightConfirmMsg;
-                        } else {
-                            state.message =
-                                `당신은 <span style="font-size: 25px; color: ${state.observerColor}">관전자</span>입니다. 투표하실 수 없습니다.<br/> <span style="font-size: 25px; color: ${state.nightColor}">밤</span>이 되었습니다. 마이크와 비디오가 중단됩니다.` +
-                                state.nightConfirmMsg;
-                        }
-                        if (state.role === "MAFIA") {
-                            for (let i = 0; i < state.subscribers.length; i++) {
-                                if (
-                                    state.playersGameInfo[i].isMafia !== true &&
-                                    !state.removeList.includes(i)
-                                ) {
-                                    state.subscribers[i].subscribeToAudio(false);
-                                    state.subscribers[i].subscribeToVideo(false);
-                                }
-                            }
-                        } else if (state.role === "OBSERVER") {
-                            for (let i = 0; i < state.subscribers.length; i++) {
-                                if (!state.removeList.includes(i)) {
-                                    state.subscribers[i].subscribeToAudio(true);
-                                    state.subscribers[i].subscribeToVideo(true);
-                                }
-                            }
-                        } else {
-                            for (let i = 0; i < state.subscribers.length; i++) {
-                                if (!state.removeList.includes(i)) {
-                                    state.subscribers[i].subscribeToVideo(false);
-                                    state.subscribers[i].subscribeToAudio(false);
-                                }
-                            }
-                        }
-                        state.gameStatus = message.gameStatus;
-                        store.dispatch("ingame/setPhase", state.gameStatus.phase);
+                        doNightVotePhase(message);
                         break;
                     }
                     case "NIGHT_TO_DAY": {
-                        const audio = new Audio(
-                            "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
-                        );
-                        audio.play();
-                        state.vote = null;
-                        if (message.gameStatus.victim) {
-                            let victimNickname = "";
-                            if (message.gameStatus.victim === state.playerMe.playerId) {
-                                victimNickname = state.playerMe.nickname;
-                            } else {
-                                for (let i = 0; i < state.playersGameInfo.length; i++) {
-                                    if (
-                                        state.playersGameInfo[i].playerId ===
-                                        message.gameStatus.victim
-                                    ) {
-                                        victimNickname = state.playersGameInfo[i].nickname;
-                                        break;
-                                    }
-                                }
-                            }
-                            let victimJob = message.gameStatus.victimIsMafia;
-                            if (victimJob) {
-                                state.message = `밤의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 <span style="font-size:25px; color:${state.mafiaColor}">마피아</span> 입니다. 곧 낮으로 넘어갑니다.`;
-                            } else {
-                                state.message = `밤의 투표 결과로 인해, <span style="font-size:25px; color:${state.victimColor}">${victimNickname}</span>님이 제거되었습니다.<br/> ${victimNickname}님의 직업은 마피아가 <span style="font-size:25px; color:${state.mafiaColor}">아닙니다</span>. 곧 낮으로 넘어갑니다.`;
-                            }
-                        } else {
-                            state.message = "밤의 투표 결과, 아무도 죽지 않았습니다.";
-                        }
-                        state.gameStatus = message.gameStatus;
-                        state.newSubscriberOn = true;
-                        infoUpdater("alive", message);
-                        infoUpdater("voters", null);
-                        infoUpdater("confirm", false);
-                        state.isConfirm = false;
-                        for (let i = 0; i < state.subscribers.length; i++) {
-                            state.subscribers[i].subscribeToAudio(true);
-                            state.subscribers[i].subscribeToVideo(true);
-                        }
-                        store.dispatch("ingame/setPhase", state.gameStatus.phase);
+                        doNightToDayPhase(message);
                         break;
                     }
                     case "END": {
-                        const audio = new Audio(
-                            "https://soundbible.com/mp3/Air Plane Ding-SoundBible.com-496729130.mp3"
-                        );
-                        audio.play();
-                        if (message.gameStatus.turnOver === true) {
-                            state.message = `게임이 종료되었습니다 <br> 15턴이 지나 자동으로 <span style="font-size: 25px; color:${state.civilColor}">시민측 진영</span>이 승리하였습니다. `;
-                        } else {
-                            let victims = message.gameStatus.victims.join(",");
-                            if (message.gameStatus.winner === "MAFIA") {
-                                state.message = `게임이 종료되었습니다. <br> <span style="font-size:25px; color:${state.victimColor}">${victims}</span>가 사망하며 시민 수가 마피아 수 이하가 되었기 때문에 <span style="font-size: 25px; color:${state.mafiaColor}">마피아측 진영</span>의 승리입니다.`;
-                            } else {
-                                state.message = `게임이 종료되었습니다. <br> <span style="font-size:25px; color:${state.victimColor}">${victims}</span>가 사망하며 마피아를 모두 제거하였기 때문에 <span style="font-size: 25px; color:${state.civilColor}">시민측 진영</span>이 승리하였습니다.`;
-                            }
-                        }
-                        state.gameStatus = message.gameStatus;
+                        doEndPhase(message);
                         break;
                     }
+                }
+            }
+        }
+
+        function doReady(message) {
+            state.message = `${styledMessage("4인 이상", "Chartreuse", 25)}부터 플레이가 가능합니다.`;
+            for (let j = state.subscribers.length - 1; j >= 0; j--) {
+                if (state.removeList.includes(j)) {
+                    state.subscribers.splice(j, 1);
+                    state.playersGameInfo.splice(j, 1);
+                    state.playerNum--;
+                }
+            }
+            state.removeList = [];
+            state.gameStatus = message.gameStatus;
+            infoUpdater("isHost", message);
+            store.dispatch("ingame/setPhase", state.gameStatus.phase);
+        }
+
+        function doStartPhase(message) {
+            audio.play();
+            state.gameStatus = message.gameStatus;
+            state.newSubscriberOn = true;
+            infoUpdater("alive", message);
+            let localSubscribers = [];
+            let localPlayersGameInfo = [];
+            for (let i = 0; i < state.subscribers.length; i++) {
+                let tmpSubscriber = {
+                    playerId: state.subscribers[i].playerId,
+                    nickname: state.subscribers[i].nickname,
+                };
+                let tmpPlayerGameInfo = {
+                    playerId: state.playersGameInfo[i].playerId,
+                    nickname: state.playersGameInfo[i].nickname,
+                    alive: true,
+                    suspicious: false,
+                    voters: [],
+                    color: state.playersGameInfo[i].color,
+                    isMafia: state.playersGameInfo[i].isMafia,
+                    isHost: false,
+                    isTalking: false,
+                    role: null,
+                    confirm: false,
+                };
+                localSubscribers.push(tmpSubscriber);
+                localPlayersGameInfo.push(tmpPlayerGameInfo);
+            }
+            console.log(localSubscribers);
+            console.log(localPlayersGameInfo);
+            localStorage.setItem("localSubscribers", JSON.stringify(localSubscribers));
+            localStorage.setItem(
+                "localPlayersGameInfo",
+                JSON.stringify(localPlayersGameInfo)
+            );
+            store.dispatch("ingame/setPhase", state.gameStatus.phase);
+            if (state.role === "OBSERVER") {
+                for (let i = 0; i < state.subscribers.length; i++) {
+                    if (!state.removeList.includes(i)) {
+                        state.subscribers[i].subscribeToAudio(true);
+                        state.subscribers[i].subscribeToVideo(true);
+                    }
+                }
+            }
+        }
+
+        function doDayDiscussionPhase(message) {
+            audio.play();
+            state.submessage = "";
+            state.message = `${styledMessage("낮", state.dayColor, 25)}이 되었습니다. <br> `;
+            if (state.role !== "OBSERVER") {
+              state.message += `마피아로 의심되는 플레이어를 지목해 주세요. <br> 
+                최다 득표를 한 플레이어들은 최종 투표 대상자에 선정됩니다.`;
+            } else {
+              state.message += `당신은 ${styledMessage("관전자", state.observerColor, 25)}입니다. 지켜보기만 가능합니다. <br> `;
+            }
+            state.message += state.dayConfirmMsg;
+
+            state.gameStatus = message.gameStatus;
+            state.newSubscriberOn = true;
+            infoUpdater("alive", message);
+            infoUpdater("confirm", false);
+            store.dispatch("ingame/setPhase", state.gameStatus.phase);
+            if (state.role === "OBSERVER") {
+                for (let i = 0; i < state.subscribers.length; i++) {
+                    if (!state.removeList.includes(i)) {
+                        state.subscribers[i].subscribeToAudio(true);
+                        state.subscribers[i].subscribeToVideo(true);
+                    }
+                }
+            }
+        }
+
+        function doDayEliminationPhase(message) {
+            audio.play();
+
+            state.vote = null;
+            if (state.role !== "OBSERVER") {
+              state.message = `${styledMessage("최종 투표 시간", "pink", 25)}입니다. <br> `;
+            } else {
+              state.message = `당신은 ${styledMessage("관전자", state.observerColor, 25)}입니다. 지켜보기만 가능합니다. <br> `;
+            }
+            state.message += `최종 투표 대상자 중 제거할 플레이어를 선택해 ${styledMessage("KILL", "crimson", null)}할 수 있습니다. <br> 
+                            최다 득표자는 제거됩니다.`;
+            state.message += state.eliminationConfirmMsg;
+
+            state.gameStatus = message.gameStatus;
+            state.newSubscriberOn = true;
+            infoUpdater("suspicious", message);
+            infoUpdater("voters", null);
+            infoUpdater("confirm", false);
+            state.isConfirm = false;
+            store.dispatch("ingame/setPhase", state.gameStatus.phase);
+        }
+
+        function doDayToNightPhase(message) {
+            audio.play();
+
+            state.vote = null;
+            if (state.gameStatus.phase === "DAY_DISCUSSION") {
+                state.message = `최다 득표자가 너무 많거나 또는 무효 투표자가 너무 많은 관계로, <br>
+                  최종 투표를 하지 않고 밤으로 넘어갑니다.`;
+            } else {
+                if (message.gameStatus.victim) {
+                    let victimNickname = "nickname";
+                    if (message.gameStatus.victim === state.playerMe.playerId) {
+                        victimNickname = state.playerMe.nickname;
+                    } else {
+                        for (let i = 0; i < state.playersGameInfo.length; i++) {
+                            if (state.playersGameInfo[i].playerId === message.gameStatus.victim) {
+                                victimNickname = state.playersGameInfo[i].nickname;
+                                break;
+                            }
+                        }
+
+                        let mafiaOrNotMessage = message.gameStatus.victimIsMafia? "맞습니다" : "아닙니다";
+                        state.message = `낮의 투표 결과로 인해, ${styledMessage(victimNickname, state.victimColor, 25)}님이 제거되었습니다. <br> `;
+                        state.message += `${victimNickname}님의 직업은 ${styledMessage("마피아", state.victimColor, 25)}가 `;
+                        state.message += `${styledMessage(mafiaOrNotMessage, "red", 25)}`;
+                        state.message += ` <br> 곧 밤으로 넘어갑니다.`;
+
+                        // 죽는 애니메이션
+                    }
+                } else {
+                    state.message = `최다 득표자가 너무 많거나 또는 무효 투표자가 너무 많은 관계로, <br> 
+                                      최종 투표를 하지 않고 밤으로 넘어갑니다.`;
+                }
+            }
+            state.gameStatus = message.gameStatus;
+            state.newSubscriberOn = true;
+            infoUpdater("alive", message);
+            infoUpdater("suspicious", false);
+            infoUpdater("voters", null);
+            infoUpdater("confirm", false);
+            state.isConfirm = false;
+            store.dispatch("ingame/setPhase", state.gameStatus.phase);
+            if (state.role === "OBSERVER") {
+                for (let i = 0; i < state.subscribers.length; i++) {
+                    if (!state.removeList.includes(i)) {
+                        state.subscribers[i].subscribeToAudio(true);
+                        state.subscribers[i].subscribeToVideo(true);
+                    }
+                }
+            }
+        }
+
+        function doNightVotePhase(message) {
+            audio.play();
+
+            let roleMessage = `${styledMessage(state.roleNames.get(state.role), state.roleColors.get(state.role), 25)}`;
+            console.log(roleMessage);
+  
+            state.message = `${styledMessage("밤", state.nightColor, 25)}이 되었습니다. <br> `;
+            if (state.role === "MAFIA") {
+              state.message += `${roleMessage}는 제거할 플레이어를 투표하여 주시기 바랍니다. <br> 
+                                동료와 상의하여 한 명만 투표하실 수 있습니다.`;
+            } else if (state.role === "DOCTOR") {
+              state.message += `${roleMessage}는 살릴 플레이어를 선택하여 주시기 바랍니다.`;
+            } else if (state.role === "POLICE") {
+              state.message += `${roleMessage}은 플레이어 선택하여 직업을 확인해보시기 바랍니다. 해당 플레이어의 직업은 밤이 지난 후 알 수 있습니다.`;
+            } else if (state.role === "CIVILIAN") {
+              state.message += `당신의 마이크와 비디오는 관전자에게만 공유됩니다.`;
+            } else {
+              state.message += `당신은 ${roleMessage}입니다. 지켜보기만 가능합니다. <br> `;
+            }
+            state.message += state.nightConfirmMsg;
+
+            if (state.role === "MAFIA") {
+                for (let i = 0; i < state.subscribers.length; i++) {
+                    if (state.playersGameInfo[i].isMafia !== true && !state.removeList.includes(i)) {
+                        state.subscribers[i].subscribeToAudio(false);
+                        state.subscribers[i].subscribeToVideo(false);
+                    }
+                }
+            } else if (state.role === "OBSERVER") {
+                for (let i = 0; i < state.subscribers.length; i++) {
+                    if (!state.removeList.includes(i)) {
+                        state.subscribers[i].subscribeToAudio(true);
+                        state.subscribers[i].subscribeToVideo(true);
+                    }
+                }
+            } else {
+                for (let i = 0; i < state.subscribers.length; i++) {
+                    if (!state.removeList.includes(i)) {
+                        state.subscribers[i].subscribeToVideo(false);
+                        state.subscribers[i].subscribeToAudio(false);
+                    }
+                }
+            }
+            state.gameStatus = message.gameStatus;
+            store.dispatch("ingame/setPhase", state.gameStatus.phase);
+        }
+
+        function doNightToDayPhase(message) {
+            audio.play();
+            state.vote = null;
+            if (message.gameStatus.victim) {
+                let victimNickname = "";
+                if (message.gameStatus.victim === state.playerMe.playerId) {
+                    victimNickname = state.playerMe.nickname;
+                } else {
+                    for (let i = 0; i < state.playersGameInfo.length; i++) {
+                        if (
+                            state.playersGameInfo[i].playerId ===
+                            message.gameStatus.victim
+                        ) {
+                            victimNickname = state.playersGameInfo[i].nickname;
+                            break;
+                        }
+                    }
+                }
+                state.message = `밤의 투표 결과로 인해, ${styledMessage(victimNickname, state.victimColor, 25)}님이 제거되었습니다. <br> `;
+
+                if (message.gameStatus.victimIsMafia) {
+                  state.message += `${victimNickname}님의 직업은 ${styledMessage("마피아", state.mafiaColor, 25)}입니다.`;
+                } else {
+                  state.message += `${victimNickname}님의 직업은 마피아가 ${styledMessage("아닙니다", state.mafiaColor, 25)}.`;
+                }
+                state.message += ` <br> 곧 낮으로 넘어갑니다.`;
+
+            } else {
+                state.message = "밤의 투표 결과, 아무도 죽지 않았습니다.";
+            }
+            state.gameStatus = message.gameStatus;
+            state.newSubscriberOn = true;
+            infoUpdater("alive", message);
+            infoUpdater("voters", null);
+            infoUpdater("confirm", false);
+            state.isConfirm = false;
+            for (let i = 0; i < state.subscribers.length; i++) {
+                if (!state.removeList.includes(i)) {
+                    state.subscribers[i].subscribeToAudio(true);
+                    state.subscribers[i].subscribeToVideo(true);
+                }
+            }
+            store.dispatch("ingame/setPhase", state.gameStatus.phase);
+        }
+
+        function doEndPhase(message) {
+            audio.play();
+            state.gameStatus = message.gameStatus;
+
+            // 초기화
+            state.role = undefined;
+            if (state.jobClient) {
+                state.jobClient.unsubscribe();
+            }
+            state.jobClient = undefined;
+            state.mafias = undefined;
+            state.submessage = "";
+            state.publisher.publishAudio(true);
+            state.publisher.publishVideo(true);
+            for (let i = 0; i < state.subscribers.length; i++) {
+                if (!state.removeList.includes(i)) {
+                    state.subscribers[i].subscribeToAudio(true);
+                    state.subscribers[i].subscribeToVideo(true);
+                }
+            }
+            infoUpdater("alive", true);
+            infoUpdater("suspicious", null);
+            infoUpdater("voters", null);
+            infoUpdater("isMafia", null);
+            infoUpdater("confirm", false);
+            state.vote = null;
+            state.isConfirm = false;
+
+            state.message = `게임이 종료되었습니다. <br> `;
+            if (message.gameStatus.turnOver === true) {
+                state.message += `15턴이 지나 자동으로 ${styledMessage("시민측 진영", state.civilColor, 25)}의 승리입니다.`;
+            } else {
+                let victims = message.gameStatus.victims.join(",");
+                state.message += `${styledMessage(victims, state.victimColor, 25)}님이 사망하여 `;
+                if (message.gameStatus.winner === "MAFIA") {
+                    state.message += `시민 수가 마피아 수 이하가 되었기 때문에 ${styledMessage("마피아측 진영", state.mafiaColor, 25)}의 승리입니다.`;
+                } else {
+                    state.message += `마피아가 모두 제거되었기 때문에 ${styledMessage("시민측 진영", state.civilColor, 25)}의 승리입니다.`;
                 }
             }
         }
@@ -1323,12 +1183,12 @@ export default {
                         break;
                     }
                 }
-                const targetJob = message.mafia ? "마피아" : "시민";
-                if (state.role === "POLICE") {
-                    state.submessage = `당신이 지목한 <span style="font-size:25px; color:${state.victimColor}">${targetNickname}</span>의 직업은 <span style="font-size:25px; color:${state.victimColor}">${targetJob}</span>입니다.`;
-                } else {
-                    state.submessage = `경찰이 지목한 <span style="font-size:25px; color:${state.victimColor}">${targetNickname}</span>의 직업은 <span style="font-size:25px; color:${state.victimColor}">${targetJob}</span>입니다.`;
-                }
+
+                const mafiaOrNotMessage = message.mafia? "맞습니다" : "아닙니다";
+                state.submessage = state.role === "POLICE" ? `당신` : `경찰`;
+                state.submessage += `이 지목한 ${styledMessage(targetNickname, state.victimColor, 25)}님은 ${styledMessage("마피아", state.victimColor, 25)}가 `;
+                state.submessage += `${styledMessage(mafiaOrNotMessage, "red", 25)}.`;
+
             } else if (message.type === "DEAD") {
                 state.newSubscriberOn = true;
                 infoUpdater("role", message);
@@ -1344,6 +1204,12 @@ export default {
                     }
                 }
             }
+        }
+
+        function styledMessage(content, color, fontSize) {
+          let fontSizeStyle = fontSize === null? "" : `font-size:${fontSize}px;`;
+          let colorStyle = color === null? "" : `color:${color};`;
+          return `<span style="${fontSizeStyle}${colorStyle}">${content}</span>`;
         }
 
         // 게임 페이지 떠날 때 할일

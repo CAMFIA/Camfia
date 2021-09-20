@@ -5,7 +5,7 @@
 
 ## 👩‍👩‍👧‍👦 팀원 소개
 #### 🧑‍💻 <strong>유태규</strong> - 팀장, FE
-#### 🧑‍💻 <strong>김지훈</strong> - BE
+#### 🧑‍💻 <strong>김지훈</strong> - BE, DevOps
 #### 🧑‍💻 <strong>김용훈</strong> - BE
 #### 🧑‍💻 <strong>이현정</strong> - BE
 #### 🧑‍💻 <strong>최은송</strong> - FE

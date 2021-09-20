@@ -14,6 +14,10 @@
                 @click="goHome"
             />
         </div>
+        <video id="testing-video" autoplay playsinline style="width: 320px;height:240px"></video>
+        <div>
+            <span v-show="state.isMediaOff" style="color: blue;">비디오와 오디오를 허용해주어야 입장이 가능합니다.</span>
+        </div>
 
         <div id="nickname-roomid">
             <p>
@@ -47,7 +51,7 @@
                     type="success"
                     size="small"
                     @click="redirectToGame"
-                    :disabled="state.isClick"
+                    :disabled="state.notClickable"
                 >
                     <span class="font-jua">입장</span>
                 </el-button>
@@ -91,7 +95,8 @@ export default {
         const state = reactive({
             isError: false,
             errorMessage: "",
-            isClick: false,
+            notClickable: true,
+            isMediaOff: true,
             form: {
                 nickname: "",
             },
@@ -107,7 +112,48 @@ export default {
             },
         });
 
+        const constraints = window.constraints = {
+            audio: true,
+            video: true
+        };
+
+        const testingVideoHandleSuccess = (stream) => {
+            const video = document.getElementById('testing-video');
+            state.notClickable = false;
+            state.isMediaOff = false;
+            window.stream = stream; // make variable available to browser console
+            video.srcObject = stream;
+        };
+
+        const testingVideoHandleError = (error) => {
+            console.log(error);
+            // 접근권한을 차단하였거나 장치 사용 권한 요청에 거부
+            if (error.name === 'NotAllowedError') {
+                errorMsg('Permissions have not been granted to use your camera and ' +
+                    'microphone, you need to allow the page access to your devices to play CAMFIA');
+            }
+            errorMsg(`getUserMedia error: ${error.name}`, error);
+        };
+
+        const errorMsg = (msg, error) => {
+            console.log(msg);
+            if (typeof error !== 'undefined') {
+                console.error(error);
+            }
+        };
+
+        const turnTestingVideoOn = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                testingVideoHandleSuccess(stream);
+            } catch (e) {
+                testingVideoHandleError(e);
+            }
+        };
+
         onMounted(() => {
+            turnTestingVideoOn();
+
             if (
                 store.getters["token/getRoomId"] === route.params.roomId &&
                 store.getters["ingame/getPhase"] !== "READY"
@@ -177,7 +223,7 @@ export default {
             // nickname validation
             nickname.value.validate((valid) => {
                 if (valid) {
-                    state.isClick = true;
+                    state.notClickable = true;
                     console.log("nickname:", state.form.nickname);
                     axios({
                         method: "POST",
@@ -210,7 +256,7 @@ export default {
                             } else {
                                 console.log(response);
                             }
-                            state.isClick = false;
+                            state.notClickable = false;
                         });
                 }
             });
@@ -228,6 +274,9 @@ export default {
             goHome,
             nickname,
             validateNickname,
+            testingVideoHandleSuccess,
+            testingVideoHandleError,
+            errorMsg,
         };
     },
 };
