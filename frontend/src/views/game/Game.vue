@@ -1319,7 +1319,7 @@ export default {
         state.playerId = store.getters["token/getPlayerId"];
         console.log(state.playerId);
         joinSession();
-        setTimeout(connect, 700);
+        setTimeout(connect, 1200);
 
         window.onbeforeunload = function(event) {
             leave();
