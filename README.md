@@ -5,7 +5,7 @@
 
 ## 👩‍👩‍👧‍👦 팀원 소개
 #### 🧑‍💻 <strong>유태규</strong> - 팀장, FE
-#### 🧑‍💻 <strong>김지훈</strong> - BE, DevOps
+#### 🧑‍💻 <strong>김지훈</strong> - BE, 배포
 #### 🧑‍💻 <strong>김용훈</strong> - BE
 #### 🧑‍💻 <strong>이현정</strong> - BE
 #### 🧑‍💻 <strong>최은송</strong> - FE
@@ -70,7 +70,7 @@
 <br>
 
 ## 💡 주요 기능 
-### 회원가입 없이 구글 로그인으로 방 생성
+### 구글 로그인 후 방 생성
 > CAMFIA는 회원가입을 따로 하지 않아도 기존 구글 아이디로 로그인하면 바로 방을 만들 수 있습니다.
 
 ![google-login](https://user-images.githubusercontent.com/24693833/130022798-22acb98e-9ebe-4562-b822-4195be7aadee.gif)
@@ -153,7 +153,7 @@
 
 <br>
 
-## 🏑 conventionss
+## 🏑 conventions
 ### commit message convention
 - angular commit message convention 
   - type(scope): short summary
@@ -407,7 +407,8 @@ LETSENCRYPT_EMAIL=example@email.com
 # mysql
 MYSQL_USER=myuser
 MYSQL_PASSWORD=mypassword
-MYSQL_ROOT_PASSWORD=mypassword
+MYSQL_ROOT_PASSWORD=myrootpassword
+MYSQL_DATABASE=mydb
 
 # backend
 GOOGLE_CLIENT_ID=1q2w3e4r-1q2w3e4r.apps.googleusercontent.com
@@ -418,6 +419,9 @@ JWT_SECRET=1q2w3e4r
 APP_BASE_URL=https://${APP_DOMAIN}/
 OPENVIDU_URL=https://my-openvidu-server.com/
 OPENVIDU_SECRET=MY_OPNEVIDU_SECRET
+
+# mysql, backend, nginx
+TZ=Asia/Seoul
 ```
 
 <br>
