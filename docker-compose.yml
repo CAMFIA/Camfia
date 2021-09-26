@@ -10,9 +10,6 @@ services:
       - mysql-data:/var/lib/mysql
       - ./mysql/initdb.d/:/docker-entrypoint-initdb.d/
     env_file: .env
-    environment:
-      MYSQL_DATABASE: mafia
-      TZ: "Asia/Seoul"
     privileged: true
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     networks:
@@ -36,9 +33,8 @@ services:
       - ./log:/log
     env_file: .env
     environment:
-      TZ: "Asia/Seoul"
       SPRING_PROFILES_ACTIVE: "prod"
-      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/mafia?useUnicode=yes&characterEncoding=UTF-8&serverTimezone=Asia/Seoul&zeroDateTimeBehavior=convertToNull&rewriteBatchedStatements=true"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=yes&characterEncoding=UTF-8&serverTimezone=Asia/Seoul&zeroDateTimeBehavior=convertToNull&rewriteBatchedStatements=true"
       SPRING_REDIS_HOST: "redis"
       server.address: 0.0.0.0
     depends_on:
