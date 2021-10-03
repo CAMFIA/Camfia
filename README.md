@@ -456,6 +456,7 @@ DEV_HOST : my-app-dev.com
 JIRA_BASE_URL : https://my-app.atlassian.net/
 PROD_BASE_URL : https://my-app.com
 PROD_HOST : my-app.com
+REGISTRY : repo.treescale.com
 REGISTRY_PASSWORD : registrypass
 REGISTRY_USERNAME : registryuser
 SSH_PORT : 22
