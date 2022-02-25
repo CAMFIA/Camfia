@@ -461,6 +461,7 @@ PROD_BASE_URL : https://my-app.com
 PROD_HOST : my-app.com
 REGISTRY : camfia.jfrog.io
 REGISTRY_PASSWORD : registrypass
+REGISTRY_REPO : repo-name
 REGISTRY_USERNAME : registryuser
 SSH_PORT : 22
 SSH_PRIVATE_KEY : -----BEGIN OPENSSH PRIVATE KEY----- ~~
