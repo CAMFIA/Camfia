@@ -204,13 +204,15 @@ DOCKER_BUILDKIT=1 docker build -t camfia/nginx ./frontend
 ```
 
 ## 배포 이미지 관리
-[treescale](https://treescale.com/) private container repository로 다음 2개의 배포 이미지가 관리됩니다.
-- repo.treescale.com/camfia/backend
-- repo.treescale.com/camfia/nginx
+다음 2개의 배포 이미지가 관리됩니다.
+- ${REGISTRY}/camfia/backend
+- ${REGISTRY}/camfia/nginx
 
 이미지를 push 또는 pull하기 위해서는 docker login이 필요합니다.
 ```sh
-docker login repo.treescale.com -u camfia
+docker login ${REGISTRY}
+Username:
+Password:
 ```
 
 <br>
@@ -401,6 +403,7 @@ project의 다음 파일을 복사합니다.
 
 이때, docker compose와 certbot을 실행하기 위해서는 `.env` 파일이 필요합니다. `.env`의 내용은 다음과 같습니다.
 ```env
+REGISTRY=camfia.jfrog.io
 APP_DOMAIN=my-app.com
 LETSENCRYPT_EMAIL=example@email.com
 
@@ -456,7 +459,7 @@ DEV_HOST : my-app-dev.com
 JIRA_BASE_URL : https://my-app.atlassian.net/
 PROD_BASE_URL : https://my-app.com
 PROD_HOST : my-app.com
-REGISTRY : repo.treescale.com
+REGISTRY : camfia.jfrog.io
 REGISTRY_PASSWORD : registrypass
 REGISTRY_USERNAME : registryuser
 SSH_PORT : 22

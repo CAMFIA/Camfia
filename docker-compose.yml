@@ -27,7 +27,7 @@ services:
       - internal_network
 
   backend:
-    image: repo.treescale.com/camfia/backend
+    image: ${REGISTRY}/camfia/backend
     container_name: backend
     volumes:
       - ./log:/log
@@ -44,7 +44,7 @@ services:
       - internal_network
 
   nginx:
-    image: repo.treescale.com/camfia/nginx
+    image: ${REGISTRY}/camfia/nginx
     container_name: nginx
     restart: always
     ports:
