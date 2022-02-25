@@ -18,8 +18,8 @@ on:
 
 env:
   ROOT_DIR: ~/camfia
-  BACKEND_IMAGE: "${{ secrets.REGISTRY }}/${{ secrets.REGISTRY_USERNAME }}/backend"
-  NGINX_IMAGE: "${{ secrets.REGISTRY }}/${{ secrets.REGISTRY_USERNAME }}/nginx"
+  BACKEND_IMAGE: "${{ secrets.REGISTRY }}/${{ secrets.REGISTRY_REPO }}/backend"
+  NGINX_IMAGE: "${{ secrets.REGISTRY }}/${{ secrets.REGISTRY_REPO }}/nginx"
   GIT_BRANCH: ${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
 
 jobs:
