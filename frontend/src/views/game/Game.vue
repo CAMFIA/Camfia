@@ -156,7 +156,7 @@ import { OpenVidu } from "openvidu-browser";
 import UserVideo from "@/views/game/components/UserVideo";
 import { computed, reactive } from "vue";
 import { useStore } from "vuex";
-import { useRoute } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import { API_CLIENT_URL } from "@/constant/index";
 import { API_BASE_URL } from "@/constant/index";
 import SockJS from "sockjs-client";
@@ -182,6 +182,7 @@ export default {
     setup() {
         const route = useRoute();
         const store = useStore();
+        const router = useRouter();
         const state = reactive({
             // openvidu 관련
             OV: undefined,
@@ -706,6 +707,8 @@ export default {
                         state.playersGameInfo[i].confirm = message.playerMap[playerId].confirm;
                     }
                 }
+            } else if (message.type == "REMOVE") {
+              router.push({ path: "/:catchAll(.*)" });
             } else {
                 console.log(
                     `sorry, unexpected message type. this is what we'v got ${message.type}`

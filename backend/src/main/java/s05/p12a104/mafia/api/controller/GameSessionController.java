@@ -24,6 +24,7 @@ import s05.p12a104.mafia.api.service.GameSessionService;
 import s05.p12a104.mafia.common.exception.ResourceNotFoundException;
 import s05.p12a104.mafia.common.reponse.ApiResponseDto;
 import s05.p12a104.mafia.domain.entity.GameSession;
+import s05.p12a104.mafia.domain.entity.User;
 import s05.p12a104.mafia.domain.repository.UserRepository;
 import s05.p12a104.mafia.security.CurrentUser;
 import s05.p12a104.mafia.security.UserPrincipal;
@@ -45,18 +46,17 @@ public class GameSessionController {
       @ApiResponse(code = 500, message = "서버 오류")})
   @PostMapping
   @PreAuthorize("hasRole('USER')")
-  public ApiResponseDto<GameSessionRes> makeRoom(
+  public ApiResponseDto<GameSessionRes> createRoom(
       @ApiIgnore @CurrentUser UserPrincipal userPrincipal,
       @RequestBody @ApiParam GameSessionPostReq typeInfo)
       throws OpenViduJavaClientException, OpenViduHttpException {
     log.info("req POST /api/gamesession - user email : {}, typInfo : {}", userPrincipal.getId(),
         typeInfo);
 
-    GameSession gameSession =
-        gameSessionService.makeGame(
-            userRepository.findById(userPrincipal.getId()).orElseThrow(
-                () -> new ResourceNotFoundException("User", "id", userPrincipal.getId())),
-            typeInfo);
+    User user = userRepository.findById(userPrincipal.getId()).orElseThrow(
+        () -> new ResourceNotFoundException("User", "id", userPrincipal.getId()));
+
+    GameSession gameSession = gameSessionService.createRoom(user, typeInfo);
 
     GameSessionRes gameSessionRes = GameSessionRes.of(gameSession);
     log.info("res POST /api/gamesession - gameSessionRes : {}", gameSessionRes);
