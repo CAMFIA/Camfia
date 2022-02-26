@@ -1,9 +1,11 @@
 package s05.p12a104.mafia.redispubsub;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.listener.ChannelTopic;
@@ -18,6 +20,7 @@ import s05.p12a104.mafia.common.exception.RedissonLockNotAcquiredException;
 import s05.p12a104.mafia.domain.entity.GameSession;
 import s05.p12a104.mafia.domain.entity.Player;
 import s05.p12a104.mafia.domain.enums.GamePhase;
+import s05.p12a104.mafia.domain.repository.PlayerRedisRepository;
 import s05.p12a104.mafia.domain.enums.GameRole;
 import s05.p12a104.mafia.redispubsub.message.DayDiscussionMessage;
 import s05.p12a104.mafia.redispubsub.message.DayEliminationMessage;
@@ -33,6 +36,7 @@ public class DayDiscussionFinSubscriber {
   private final SimpMessagingTemplate template;
   private final RedisPublisher redisPublisher;
   private final GameSessionService gameSessionService;
+  private final PlayerRedisRepository playerRedisRepository;
   private final GameSessionVoteService gameSessionVoteService;
   private final ChannelTopic topicDayEliminationFin;
   private final RedissonClient redissonClient;
@@ -68,26 +72,22 @@ public class DayDiscussionFinSubscriber {
         // DAY ELIMINATION으로
         List<String> victims = setDayElimination(gameSession, suspiciousList);
 
+        List<Player> players = playerRedisRepository.findByRoomId(roomId);
         // 종료 여부 체크
-        if (gameSessionService.isDone(gameSession, victims)) {
+        if (gameSessionService.isDone(gameSession, players, victims)) {
           return;
         }
 
-        log.info("Room {} start Day {} {} ", gameSession.getRoomId(), gameSession.getDay(),
-            gameSession.getPhase());
+        template.convertAndSend("/sub/" + roomId, GameStatusRes.of(gameSession, players));
 
-        template.convertAndSend("/sub/" + roomId, GameStatusRes.of(gameSession));
+        Map<String, GameRole> alivePlayerRoles = players.stream()
+            .filter(Player::isAlive)
+            .collect(Collectors.toMap(Player::getId, Player::getRole));
 
-        Map<String, GameRole> players = new HashMap<>();
-
-        gameSession.getPlayerMap().forEach((playerId, player) -> {
-          if (player.isAlive()) {
-            players.put(playerId, player.getRole());
-          }
-        });
+        log.info("Room {} start Day {} {} ", roomId, gameSession.getDay(), gameSession.getPhase());
 
         gameSessionVoteService.startVote(roomId, gameSession.getPhaseCount(),
-            gameSession.getPhase(), gameSession.getTimer(), players);
+            gameSession.getPhase(), gameSession.getTimer(), alivePlayerRoles);
 
       } finally {
         lock.unlock();
@@ -99,15 +99,28 @@ public class DayDiscussionFinSubscriber {
   }
 
   private List<String> setDayElimination(GameSession gameSession, List<String> suspiciousList) {
-    log.info("suspiciousList : " + suspiciousList.toString());
-    List<String> victims =
-        gameSession.changePhase(GamePhase.DAY_ELIMINATION, 30 * suspiciousList.size());
+    log.info("suspiciousList : {} in Room {}", suspiciousList.toString(), gameSession.getRoomId());
+
+    List<String> victims = new ArrayList<>();
+    gameSession.changePhase(GamePhase.DAY_ELIMINATION, 30 * suspiciousList.size());
+    List<Player> players = playerRedisRepository.findByRoomId(gameSession.getRoomId());
+    for (Player player : players) {
+      if (!player.isLeft() || player.getLeftPhaseCount() >= gameSession.getPhaseCount()) {
+        continue;
+      }
+      player.setAlive(false);
+      playerRedisRepository.save(player);
+      gameSession.eliminatePlayer(player);
+      victims.add(player.getNickname());
+    }
 
     // 의심자 체크
-    Map<String, Player> playerMap = gameSession.getPlayerMap();
-    for (String suspicious : suspiciousList) {
-      playerMap.get(suspicious).setSuspicious(true);
-    }
+    players.forEach(player -> {
+      if (suspiciousList.contains(player.getId())) {
+        player.setSuspicious(true);
+        playerRedisRepository.save(player);
+      }
+    });
 
     gameSessionService.update(gameSession);
 
@@ -115,7 +128,7 @@ public class DayDiscussionFinSubscriber {
   }
 
   private void setDayToNight(String roomId) {
-    log.info("no suspiciousList", roomId);
+    log.info("no suspiciousList - {}", roomId);
     DayEliminationMessage dayEliminationMessage = new DayEliminationMessage(roomId, null);
     redisPublisher.publish(topicDayEliminationFin, dayEliminationMessage);
   }

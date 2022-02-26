@@ -1,6 +1,8 @@
 package s05.p12a104.mafia.redispubsub;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Timer;
 import java.util.concurrent.TimeUnit;
 import org.redisson.api.RLock;
@@ -18,6 +20,7 @@ import s05.p12a104.mafia.common.util.TimeUtils;
 import s05.p12a104.mafia.domain.entity.GameSession;
 import s05.p12a104.mafia.domain.entity.Player;
 import s05.p12a104.mafia.domain.enums.GamePhase;
+import s05.p12a104.mafia.domain.repository.PlayerRedisRepository;
 import s05.p12a104.mafia.redispubsub.message.DayEliminationMessage;
 import s05.p12a104.mafia.stomp.response.GameStatusKillRes;
 import s05.p12a104.mafia.stomp.response.PlayerDeadRes;
@@ -32,6 +35,7 @@ public class DayEliminationFinSubscriber {
   private final SimpMessagingTemplate template;
   private final RedisPublisher redisPublisher;
   private final GameSessionService gameSessionService;
+  private final PlayerRedisRepository playerRedisRepository;
   private final ChannelTopic topicDayToNightFin;
   private final RedissonClient redissonClient;
   private static final String KEY = "GameSession";
@@ -42,7 +46,6 @@ public class DayEliminationFinSubscriber {
           objectMapper.readValue(message, DayEliminationMessage.class);
       String roomId = dayEliminationMessage.getRoomId();
       String deadPlayerId = dayEliminationMessage.getDeadPlayerId();
-      Player deadPlayer = null;
 
       RLock lock = redissonClient.getLock(KEY + roomId);
       boolean isLocked = false;
@@ -58,51 +61,72 @@ public class DayEliminationFinSubscriber {
       GameSession gameSession = null;
       try {
         gameSession = gameSessionService.findById(roomId);
-        deadPlayer = gameSession.getPlayerMap().get(deadPlayerId);
         List<String> victims = setDayToNight(gameSession, deadPlayerId);
 
+        List<Player> players = playerRedisRepository.findByRoomId(roomId);
         // 종료 여부 체크
-        if (gameSessionService.isDone(gameSession, victims)) {
+        if (gameSessionService.isDone(gameSession, players, victims)) {
           return;
         }
 
-        log.info("Room {} start Day {} {} ", gameSession.getRoomId(), gameSession.getDay(),
-            gameSession.getPhase());
+        Optional<Player> deadPlayerOptional = playerRedisRepository.findById(deadPlayerId);
+        if (!deadPlayerOptional.isPresent()) {
+          return;
+        }
+        Player deadPlayer = deadPlayerOptional.get();
+
+        log.info("Room {} start Day {} {} ", roomId, gameSession.getDay(), gameSession.getPhase());
 
         // 밤투표 결과
-        template.convertAndSend("/sub/" + roomId, GameStatusKillRes.of(gameSession, deadPlayer));
+        template.convertAndSend("/sub/" + roomId,
+            GameStatusKillRes.of(gameSession, players, deadPlayer));
 
         // 사망자 OBSERVER 변경
-        if (deadPlayer != null) {
-          template.convertAndSend("/sub/" + roomId + "/" + deadPlayerId, PlayerDeadRes.of());
-        }
+        template.convertAndSend("/sub/" + roomId + "/" + deadPlayerId, PlayerDeadRes.of());
 
       } finally {
         lock.unlock();
       }
 
       // Timer를 돌릴 마땅한 위치가 없어서 추후에 통합 예정
-      Timer timer = new Timer();
       StartFinTimerTask task = new StartFinTimerTask(redisPublisher, topicDayToNightFin);
       task.setRoomId(roomId);
-      timer.schedule(task, TimeUtils.convertToDate(gameSession.getTimer()));
+      new Timer().schedule(task, TimeUtils.convertToDate(gameSession.getTimer()));
     } catch (JsonProcessingException e) {
       e.printStackTrace();
     }
   }
 
   private List<String> setDayToNight(GameSession gameSession, String deadPlayerId) {
-
     // 나간 사람 체크 및 기본 세팅
-    List<String> victims = gameSession.changePhase(GamePhase.DAY_TO_NIGHT, 5);
+    gameSession.changePhase(GamePhase.DAY_TO_NIGHT, 15);
+    List<String> victims = new ArrayList<>();
+    List<Player> players = playerRedisRepository.findByRoomId(gameSession.getRoomId());
+    for (Player player : players) {
+      // suspicious 초기화
+      player.setSuspicious(false);
 
-    // suspicious 초기화
-    gameSession.getPlayerMap().forEach((playerId, player) -> player.setSuspicious(false));
+      if (!player.isLeft() || player.getLeftPhaseCount() == null
+          || player.getLeftPhaseCount() >= gameSession.getPhaseCount()) {
+        continue;
+      }
+      player.setAlive(false);
+      player.setLeftPhaseCount(null);
+      playerRedisRepository.save(player);
+      gameSession.eliminatePlayer(player);
+      victims.add(player.getNickname());
+    }
 
     // 사망 처리
-    if (deadPlayerId != null) {
-      gameSession.eliminatePlayer(deadPlayerId);
-      victims.add(gameSession.getPlayerMap().get(deadPlayerId).getNickname());
+    Optional<Player> deadPlayerOptional = playerRedisRepository.findById(deadPlayerId);
+    if (deadPlayerOptional.isPresent()) {
+      Player deadplayer = deadPlayerOptional.get();
+      if (deadplayer.isAlive()) {
+        deadplayer.setAlive(false);
+        playerRedisRepository.save(deadplayer);
+        gameSession.eliminatePlayer(deadplayer);
+        victims.add(deadplayer.getNickname());
+      }
     }
     log.info("Room {} ElimainationVote deadPlayer: {}", gameSession.getRoomId(), deadPlayerId);
 

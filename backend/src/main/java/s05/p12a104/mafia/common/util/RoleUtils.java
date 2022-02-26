@@ -12,11 +12,11 @@ import s05.p12a104.mafia.domain.enums.RoomType;
 
 public class RoleUtils {
 
-  public static Map<GameRole, Integer> getRoleNum(GameSession gameSession) {
+  public static Map<GameRole, Integer> getRoleNum(GameSession gameSession, int playerCount) {
     Map<GameRole, Integer> roleNum = new HashMap<>();
 
     RoomType roomType = gameSession.getRoomType();
-    int num = gameSession.getPlayerMap().size();
+    int num = playerCount;
 
     int mafia = 0;
     int doctor = 0;
@@ -40,26 +40,22 @@ public class RoleUtils {
 
   }
 
-  public static List<String> assignRole(Map<GameRole, Integer> roleNum,
-      Map<String, Player> players) {
-
+  public static List<String> assignRole(Map<GameRole, Integer> roleNum, List<Player> players) {
     List<String> mafias = new ArrayList<>();
 
-    List<String> playerList = new ArrayList<>(players.keySet());
-    boolean[] isRole = new boolean[playerList.size()];
-
+    int playerCount = players.size();
+    boolean[] isRole = new boolean[playerCount];
     Random random = new Random();
     roleNum.forEach((role, num) -> {
       while (num-- > 0) {
         int idx = -1;
-        do{
-           idx = (int) (random.nextInt(playerList.size() * 100) % playerList.size());
-        }while(isRole[idx]);
+        do {
+          idx = random.nextInt(playerCount * 100) % playerCount;
+        } while (isRole[idx]);
 
-        Player player = players.get(playerList.get(idx));
-        isRole[idx] = true;
-
+        Player player = players.get(idx);
         player.setRole(role);
+        isRole[idx] = true;
 
         if (role == GameRole.MAFIA) {
           mafias.add(player.getId());

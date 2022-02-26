@@ -8,6 +8,7 @@ import s05.p12a104.mafia.api.requset.GameSessionPostReq;
 import s05.p12a104.mafia.api.response.GameSessionJoinRes;
 import s05.p12a104.mafia.common.exception.GameSessionException;
 import s05.p12a104.mafia.domain.entity.GameSession;
+import s05.p12a104.mafia.domain.entity.Player;
 import s05.p12a104.mafia.domain.entity.User;
 import s05.p12a104.mafia.domain.enums.GameRole;
 
@@ -17,21 +18,21 @@ public interface GameSessionService {
 
   GameSessionJoinRes getPlayerJoinableState(String roomId, String playerId);
 
-  void deleteByRoomId(String roomId);
+  void deleteById(String roomId);
 
-  GameSession findById(String id);
+  GameSession findById(String roomId);
 
   void update(GameSession update);
 
   GameSessionJoinRes addUser(String roomId, String nickname);
 
-  GameSession removeUser(String roomId, String playerId);
+  void removeUser(String roomId, String playerId);
 
-  void startGame(GameSession gameSession);
+  void startGame(String roomId);
 
-  boolean isDone(GameSession gameSession, List<String> victims);
+  boolean isDone(GameSession gameSession, List<Player> players, List<String> victims);
 
-  void endGame(GameSession gameSession);
+  void endGame(String roomId);
 
-  Map<String, GameRole> addObserver(String roomId, String playerId);
+  Map<String, GameRole> getAllPlayerRole(String roomId, String playerId);
 }

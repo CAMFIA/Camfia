@@ -3,6 +3,7 @@ package s05.p12a104.mafia.stomp.response;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
@@ -23,19 +24,24 @@ public class StompResForRejoiningPlayer {
   private final GameRole role;
   private final List<String> mafias;
 
-  public static StompResForRejoiningPlayer of(GameSession gameSession, String reJoiningplayerId,
-      Map<String, Boolean> confirmResult) {
-    Map<String, StompExistingPlayer> playerMap = new HashMap<>();
+  public StompResForRejoiningPlayer(GameSession gameSession, List<Player> players,
+      String reJoiningplayerId, Map<String, Boolean> confirmResult) {
 
-    gameSession.getPlayerMap()
-        .forEach((playerId, player) -> playerMap.put(playerId, StompExistingPlayer.of(player,
-            confirmResult.containsKey(playerId) ? confirmResult.get(playerId) : false)));
+    Player rejoiningPlayer = null;
+    this.playerMap = players.stream().collect(Collectors.toMap(Player::getId,
+        player -> StompExistingPlayer
+            .of(player, confirmResult.getOrDefault(player.getId(), false))));
 
-    Player rejoiningPlayer = gameSession.getPlayerMap().get(reJoiningplayerId);
-    GameStatus gameStatus = GameStatus.of(gameSession);
+    for (Player player : players) {
+      if (player.getId().equals(reJoiningplayerId)) {
+        rejoiningPlayer = player;
+        break;
+      }
+    }
 
-    return new StompResForRejoiningPlayer(gameSession.getHostId(), gameStatus, playerMap,
-        rejoiningPlayer.getRole(),
-        rejoiningPlayer.getRole() == GameRole.MAFIA ? gameSession.getMafias() : null);
+    this.hostId = gameSession.getHostId();
+    this.gameStatus = GameStatus.of(gameSession);
+    this.role = rejoiningPlayer.getRole();
+    this.mafias = this.role == GameRole.MAFIA ? gameSession.getMafias() : null;
   }
 }

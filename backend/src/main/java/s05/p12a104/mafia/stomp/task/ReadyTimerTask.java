@@ -5,7 +5,6 @@ import java.util.concurrent.TimeUnit;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import s05.p12a104.mafia.api.service.GameSessionService;
@@ -37,11 +36,12 @@ public class ReadyTimerTask extends TimerTask {
     }
 
     try {
+      log.info("send ready message");
+      gameSessionService.endGame(roomId);
       GameSession gameSession = gameSessionService.findById(roomId);
-      gameSessionService.endGame(gameSession);
 
-      log.info("Send ready message to frontend: the room id - {}", gameSession.getRoomId());
-      
+      log.info("Send ready message to frontend: the room id - {}", roomId);
+
       template.convertAndSend("/sub/" + roomId, GameSessionReadyRes.of(gameSession));
 
     } finally {
