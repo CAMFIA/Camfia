@@ -25,97 +25,98 @@
 
 - 프로젝트 셋업
 
-```
-npm i
-```
+  ```
+  npm i
+  ```
 
 - 개발자 모드 실행
 
-```
-npm run serve_dev
-```
+  ```
+  npm run serve_dev
+  ```
 
 - 사용자 모드 실행
 
-```
-npm run serve_prod
-```
+  ```
+  npm run serve_prod
+  ```
 
 - 빌드 파일(dist) 개발자 환경 변수로 생성
 
-```
-npm run build_dev
-```
+  ```
+  npm run build_dev
+  ```
 
 - 빌드 파일(dist) 사용자 환경 변수로 생성
 
-```
-npm run build_prod
-```
+  ```
+  npm run build_prod
+  ```
 
 - [run-backend.sh](./script/run-backend.sh)을 실행하여 docker-compose를 통한 backend 실행
-	- 단, docker-compose를 실행하기 위해서 `local.env` 파일이 project의 root 위치에 있어야 하는데, `local.env` 파일의 내용은 다음과 같다
-	```env
-	# backend
-	GOOGLE_CLIENT_SECRET=4r3e2w1q4r3e2w1q
-	```
+  - 단, docker-compose를 실행하기 위해서 `local.env` 파일이 project의 root 위치에 있어야 하는데, `local.env` 파일의 내용은 다음과 같다
+    ```env
+    # backend
+    GOOGLE_CLIENT_SECRET=4r3e2w1q4r3e2w1q
+    ```
+
+
 
 <br>
 
 ## 📈 프로젝트 구조
 
-```
 - App.vue
 
 - assets
-	- fonts
-	- images
+  - fonts
+  - images
 
 - router
-	- router.js
+  - router.js
 
 - store
-	- modules
-	- index.js
-	- mutation-types.js
+  - modules
+  - index.js
+  - mutation-types.js
 
 - common
-	- css
-		- common.css
+  - css
+    - common.css
 		
 - constant(각종 환경변수 및 상수들)
 
 - views
-	- home (홈)
-		- Home.vue
-		- components
-		  - Login.vue
+  - home (홈)
+    - Home.vue
+    - components
+      - Login.vue
 	
-	- game (게임)
-		- Game.vue
-		- components
-			- Navbar.vue
-			- Background.vue
-			- UserVideo.vue
-			- OvVideo.vue
-			- RuleBook.vue
+  - game (게임)
+    - Game.vue
+    - components
+      - Navbar.vue
+      - Background.vue
+      - UserVideo.vue
+      - OvVideo.vue
+      - RuleBook.vue
 	
-	- room-setting (방 세팅)
-		- Room-setting.vue
+  - room-setting (방 세팅)
+    - Room-setting.vue
 	
-	- nickname (닉네임 설정)
-		- Nickname.vue
+  - nickname (닉네임 설정)
+     - Nickname.vue
 	
-	- error (에러)
-		- 404.vue
-```
+  - error (에러)
+    - 404.vue
 
 <br>
 
 ##  화면별 설명
-### 홈 화면
+### 홈 화면  
 
-![Cap 2021-08-17 11-46-57-880](README.assets/Cap 2021-08-17 11-46-57-880.jpg)
+![Cap 2021-08-17 11-46-57-880](README.assets/Cap_2021-08-17_11-46-57-880.jpg)
+
 
 1.  사이트 로고: 클릭하면 홈화면으로 이동할 수 있습니다.
 2.  방 만들기 버튼: 로그인 후 방 만들기 버튼을 클릭하면 방을 생성할 수 있습니다.
@@ -124,7 +125,7 @@ npm run build_prod
 
 ### 방 생성 화면
 
-![Cap 2021-08-17 11-21-33-845](README.assets/Cap 2021-08-17 11-21-33-845.jpg)
+![Cap 2021-08-17 11-21-33-845](README.assets/Cap_2021-08-17_11-21-33-845.jpg)
 
 1.  사이트 로고: 클릭하면 홈화면으로 이동할 수 있습니다.
 2.  설정 폼: 내부의 버튼들을 클릭하여 만들려는 방의 설정을 정할 수 있습니다. 현재 친구들과 기본 모드로 하는 것만 지원됩니다.
@@ -132,7 +133,7 @@ npm run build_prod
 
 ### 닉네임 설정 화면
 
-![Cap 2021-08-17 10-57-38-792](README.assets/Cap 2021-08-17 10-57-38-792.jpg)
+![Cap 2021-08-17 10-57-38-792](README.assets/Cap_2021-08-17_10-57-38-792.jpg)
 
 1.  사이트 로고: 클릭 시 홈화면으로 이동할 수 있습니다.
 2.  room id: 현재 진입하려고 하는 방의 room id를 확인할 수 있습니다.
@@ -142,7 +143,7 @@ npm run build_prod
 
 ### 게임 화면
 
-![Cap 2021-08-17 10-59-13-984](README.assets/Cap 2021-08-17 10-59-13-984.jpg)
+![Cap 2021-08-17 10-59-13-984](README.assets/Cap_2021-08-17_10-59-13-984.jpg)
 
 1.  네비게이션 바: 게임의 상태와 관련된 정보들이 표시되는 곳입니다. 며칠째 진행중인지와 남아있는 마피아 수, 이번 페이즈의 시간이 얼마나 남았는지 등을 확인할 수 있습니다
 2.  네비게이션 바 버튼: 게임과 관련된 것들을 선택할 수 있는 곳입니다. 호스트일 경우 게임을 시작할 수 있으며, 투표가 가능한 페이즈일 경우 투표를 확정할 수 있습니다.
@@ -152,7 +153,7 @@ npm run build_prod
 
 ### 404 에러 화면
 
-![Cap 2021-08-17 11-32-53-038](README.assets/Cap 2021-08-17 11-32-53-038.jpg)
+![Cap 2021-08-17 11-32-53-038](README.assets/Cap_2021-08-17_11-32-53-038.jpg)
 
 1.  홈 버튼: 클릭 시 홈화면으로 이동하게 됩니다.
 2.  에러 메세지: 어떤 종류의 에러가 난 것인지를 알려줍니다. 이 경우 사용자가 찾고자 하는 것을 찾을 수 없을 때 일어나는 에러입니다. 
@@ -162,4 +163,5 @@ npm run build_prod
 - [와이어 프레임](https://www.figma.com/file/D946y8Vykt2jgYXgHfmGDM/%EB%A7%88%ED%94%BC%EC%95%84%EA%B2%8C%EC%9E%84---%EC%99%80%EC%9D%B4%EC%96%B4-%ED%94%84%EB%A0%88%EC%9E%84?node-id=0%3A1)
 - [Airbnb JavaScript Style Guide](https://github.com/airbnb/javascript)
 - [Vue JS Style Guide](https://kr.vuejs.org/v2/style-guide/index.html)
+
 
