@@ -22,7 +22,7 @@
             >
                 <img
                     class="crown"
-                    src="https://image.flaticon.com/icons/png/512/1980/1980126.png"
+                    src="../../../assets/image/crown.png"
                 />
                 <span class="host-title font-jua">호스트</span>
             </div>
