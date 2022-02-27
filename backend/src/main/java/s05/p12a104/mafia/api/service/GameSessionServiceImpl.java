@@ -14,6 +14,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.RedisKeyValueTemplate;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import io.openvidu.java.client.ConnectionProperties;
 import io.openvidu.java.client.ConnectionType;
@@ -55,6 +56,7 @@ import s05.p12a104.mafia.domain.repository.PlayerRedisRepository;
 import s05.p12a104.mafia.redispubsub.RedisPublisher;
 import s05.p12a104.mafia.redispubsub.message.EndMessgae;
 import s05.p12a104.mafia.stomp.response.GameResult;
+import s05.p12a104.mafia.stomp.response.GameSessionDeleteRes;
 
 @Service
 @Slf4j
@@ -73,6 +75,8 @@ public class GameSessionServiceImpl implements GameSessionService {
 
   private final RedissonClient redissonClient;
 
+  private final SimpMessagingTemplate msgTemplate;
+
   private final ChannelTopic topicEnd;
 
   private final OpenVidu openVidu;
@@ -83,17 +87,10 @@ public class GameSessionServiceImpl implements GameSessionService {
   private static final String KEY = "GameSession";
 
   @Override
-  public GameSession makeGame(User user, GameSessionPostReq typeInfo)
+  public GameSession createRoom(User user, GameSessionPostReq typeInfo)
       throws OpenViduJavaClientException, OpenViduHttpException {
 
-    if (gameSessionRedisRepository.count() >= MAX_TOTAL_ROOM_COUNT) {
-      throw new OverMaxTotalRoomCountException();
-    }
-
-    if (gameSessionRedisRepository.findByCreatorEmail(user.getEmail())
-        .size() >= MAX_INDIVIDUAL_ROOM_COUNT) {
-      throw new OverMaxIndividualRoomCountException();
-    }
+    validateRoomCreation(user);
 
     Session newSession = openVidu.createSession();
     String newRoomId =
@@ -106,6 +103,32 @@ public class GameSessionServiceImpl implements GameSessionService {
 
     GameSessionDao newDao = GameSessionDaoMapper.INSTANCE.toDao(newGameSession);
     return GameSession.of(gameSessionRedisRepository.save(newDao), openVidu);
+  }
+
+  private void validateRoomCreation(User user) {
+    if (gameSessionRedisRepository.count() >= MAX_TOTAL_ROOM_COUNT) {
+      throw new OverMaxTotalRoomCountException();
+    }
+
+    List<GameSessionDao> individualGameSessions
+        = gameSessionRedisRepository.findByCreatorEmail(user.getEmail());
+    int gameSessionCount = individualGameSessions.size();
+    if (gameSessionCount >= MAX_INDIVIDUAL_ROOM_COUNT) {
+      LocalDateTime now = LocalDateTime.now();
+      for (GameSessionDao gameSessionDao : individualGameSessions) {
+        if (gameSessionDao.getState() == GameState.STARTED) {
+          continue;
+        }
+        if (gameSessionDao.getFinishedTime().plusHours(1).isBefore(now)) {
+          deleteRoomById(gameSessionDao.getRoomId());
+          gameSessionCount--;
+        }
+      }
+
+      if (gameSessionCount >= MAX_INDIVIDUAL_ROOM_COUNT) {
+        throw new OverMaxIndividualRoomCountException();
+      }
+    }
   }
 
   @Override
@@ -143,8 +166,9 @@ public class GameSessionServiceImpl implements GameSessionService {
   }
 
   @Override
-  public void deleteById(String roomId) {
+  public void deleteRoomById(String roomId) {
     gameSessionRedisRepository.deleteById(roomId);
+    msgTemplate.convertAndSend("/sub/" + roomId, new GameSessionDeleteRes());
     log.info("Room {} removed and closed", roomId);
   }
 
@@ -237,7 +261,7 @@ public class GameSessionServiceImpl implements GameSessionService {
   /**
    * 게임 진행 중에 나간 Player 제거.
    *
-   * @param roomId : 나간 방의 id
+   * @param roomId      : 나간 방의 id
    * @param delPlayerId : 나간 player id
    */
   private void removePlayerInGame(String roomId, String delPlayerId) {
@@ -305,7 +329,7 @@ public class GameSessionServiceImpl implements GameSessionService {
 
     List<Player> players = playerRedisRepository.findByRoomId(roomId);
     if (players.size() <= 0) {
-      gameSessionRedisRepository.deleteById(roomId);
+      deleteRoomById(roomId);
       return;
     }
 
@@ -389,7 +413,7 @@ public class GameSessionServiceImpl implements GameSessionService {
         playerRedisRepository.deleteById(player.getId());
         log.info("Player {} in Room {} removed", player.getId(), roomId);
       }
-      deleteById(gameSession.getRoomId());
+      deleteRoomById(gameSession.getRoomId());
       return true;
     }
 

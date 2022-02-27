@@ -10,5 +10,6 @@ public enum StompMessageType {
   UPDATE,
   CONFIRM,
   DEAD,
-  SUSPECT
+  SUSPECT,
+  DELETE
 }

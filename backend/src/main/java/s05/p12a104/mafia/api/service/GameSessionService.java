@@ -13,12 +13,12 @@ import s05.p12a104.mafia.domain.entity.User;
 import s05.p12a104.mafia.domain.enums.GameRole;
 
 public interface GameSessionService {
-  GameSession makeGame(User user, GameSessionPostReq typeInfo)
+  GameSession createRoom(User user, GameSessionPostReq typeInfo)
       throws GameSessionException, OpenViduJavaClientException, OpenViduHttpException;
 
   GameSessionJoinRes getPlayerJoinableState(String roomId, String playerId);
 
-  void deleteById(String roomId);
+  void deleteRoomById(String roomId);
 
   GameSession findById(String roomId);
 
